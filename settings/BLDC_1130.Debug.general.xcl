@@ -1,0 +1,15 @@
+"D:\IAR\arm\bin\armproc.dll" 
+
+"D:\IAR\arm\bin\armstlink2.dll" 
+
+"C:\Users\Hanfang Su\Desktop\科研\Mortor\BLDC_1130_IAR\Debug\Exe\BLDC_1130.out" 
+
+--plugin="D:\IAR\arm\bin\armbat.dll" 
+
+--device_macro="D:\IAR\arm\config\debugger\ST\STM32F1xx.dmac" 
+
+--flash_loader="D:\IAR\arm\config\flashloader\ST\FlashSTM32F10xx8.board" 
+
+
+
+
