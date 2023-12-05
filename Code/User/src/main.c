@@ -33,8 +33,8 @@ int main(void)
 	ADC_Configuration();        //ADC初始化
 	// Delay_ms(20);
 	TIM1_Config();              //定时器 PWM初始化
-	//TIM2_Config();              //定时器初始化  
-	//TIM4_Config();
+	TIM2_Config();              //定时器初始化  
+	TIM4_Config();
 	// Delay_ms(20);
 	mcState=mcStop;
 

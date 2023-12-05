@@ -14,13 +14,13 @@ uint16_t TuneDutyRatioCnt = 0;
  输入参数  : 无
  输出参数  : void
 *****************************************************************************/
-void  TIM3_IRQHandler(void)
+void  TIM2_IRQHandler(void)
 {
 	
-   if( TIM_GetITStatus(TIM3,TIM_IT_Update) != RESET ) //是否发生中断
-	 {
-		 	TIM_ClearITPendingBit(TIM3, TIM_IT_Update);
-	 }
+	if( TIM_GetITStatus(TIM2,TIM_IT_Update) != RESET ) //是否发生中断
+	{
+		TIM_ClearITPendingBit(TIM2, TIM_IT_Update);
+	}
     
 }	
 /*****************************************************************************
@@ -29,22 +29,22 @@ void  TIM3_IRQHandler(void)
  输入参数  : 无
  输出参数  : void
 *****************************************************************************/
-void  TIM14_IRQHandler(void)
+void  TIM4_IRQHandler(void)
 {
-	 if(sysflags.Angle_Mask==1)
-	 {
-	    sysflags.Angle_Mask=0;
-      TIM_Cmd(TIM14, DISABLE);   //失能定时器	 
-	 }		 
-	 if(sysflags.ChangePhase==1)
-	 {
-		 	 sysflags.ChangePhase=0;
-	  	 Startup_Turn();//
-		 	 TIM14->ARR=Mask_TIME;
-		 	 TIM14->CNT = 0;
-		 	 sysflags.Angle_Mask=1;		 
-	 }
-	 TIM_ClearITPendingBit(TIM14, TIM_IT_Update);
+	if(sysflags.Angle_Mask==1)
+	{
+		sysflags.Angle_Mask=0;
+		TIM_Cmd(TIM4, DISABLE);   //失能定时器	 
+	}		 
+	if(sysflags.ChangePhase==1)
+	{
+		sysflags.ChangePhase=0;
+		Startup_Turn();//
+		TIM4->ARR=Mask_TIME;
+		TIM4->CNT = 0;
+		sysflags.Angle_Mask=1;		 
+	}
+	 TIM_ClearITPendingBit(TIM4, TIM_IT_Update);
 }
 /*****************************************************************************
  函 数 名  : DMA1_Channel1_IRQHandler
@@ -57,55 +57,58 @@ void DMA1_Channel1_IRQHandler(void)
 	switch(mcState)
 	{
 		case mcAlignment:
-				Align_pos_check_proc();//初始位置检测进程
-			  if((Flag_adc==1)||(Flag_Charger==1))//充电标志位或者电流检测标志位置1
-				{
-			    Charger_Time++;  //时间计数++
+			Align_pos_check_proc();//初始位置检测进程
+
+			if((Flag_adc==1)||(Flag_Charger==1))//充电标志位或者电流检测标志位置1
+			{
+				Charger_Time++;  //时间计数++
+			}
+
+			if(Flag_adc==1)//电流检测标志位置1
+			{
+				if(pos_idx<=5) //ADC电流检测序号
+				{			
+					ADC_check_buf[pos_idx]=RegularConvData_Tab[1];//获取峰值电流	//此处有待商酌
 				}
-			  if(Flag_adc==1)//电流检测标志位置1
+			}
+			
+			if(Flag_Charger==1) //充电标志位
+			{
+				if(Charger_Time>=LongPulse_Time)  //充电时间到
 				{
-					if(pos_idx<=5) //ADC电流检测序号
-					{			
-						ADC_check_buf[pos_idx]=RegularConvData_Tab[1];//获取峰值电流	//此处有待商酌
-					}
+					Charger_Time=0;  //计数清0
+					All_Discharg();  //输出全部关闭
+					Flag_Charger=0;  //充电标志位清0
 				}
-			 if(Flag_Charger==1) //充电标志位
-	     {
-					if(Charger_Time>=LongPulse_Time)  //充电时间到
-					{
-						Charger_Time=0;  //计数清0
-						All_Discharg();  //输出全部关闭
-						Flag_Charger=0;  //充电标志位清0
-					}
-				}
-				else if(Flag_adc==1) //电流检测标志位置1
+			}
+			else if(Flag_adc==1) //电流检测标志位置1
+			{
+				if(Charger_Time>=ShortPulse_Time) //时间计数到
 				{
-					if(Charger_Time>=ShortPulse_Time) //时间计数到
-					{
-							All_Discharg();
-							Charger_Time=0;
-							Flag_adc=0;
-					}
-	      }
-			  break;
+					All_Discharg();
+					Charger_Time=0;
+					Flag_adc=0;
+				}
+			}
+			break;
 		case mcDrag:
-			  StartupDrag();//强拖
-			  break;		
+			StartupDrag();//强拖
+			break;		
 		case mcRun:	
-			  BemfCheck();	//反电动势检测 
-		    //JudgeErrorCommutation();
-			  break;			
+			BemfCheck();	//反电动势检测 
+		//JudgeErrorCommutation();
+			break;			
 		default:
-			  break;
+			break;
 	}
 	
-	 if(mcState==mcRun)
-	 {	
-		 TuneDutyRatioCnt ++;
-	 }
-	 ADCIntProtectCnt ++;
+	if(mcState==mcRun)
+	{	
+		TuneDutyRatioCnt ++;
+	}
+	ADCIntProtectCnt ++;
  // GPIOB->ODR ^= GPIO_Pin_4;
-	 Instant_Current_Cale();
-   DMA_ClearITPendingBit(DMA1_IT_TC1);
+	Instant_Current_Cale();
+	DMA_ClearITPendingBit(DMA1_IT_TC1);
 	
 }

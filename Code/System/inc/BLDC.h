@@ -20,18 +20,22 @@
 
 #define  Flag_DEFAULTS    {0,0,0}
 
-#define  PWM_DUTYCYCLE_05    75
-#define  PWM_DUTYCYCLE_10    150
-#define  PWM_DUTYCYCLE_15    225
-#define  PWM_DUTYCYCLE_20    300
-#define  PWM_DUTYCYCLE_25    375
+// #define  PWM_DUTYCYCLE_05    75
+// #define  PWM_DUTYCYCLE_10    150
+// #define  PWM_DUTYCYCLE_15    225
+// #define  PWM_DUTYCYCLE_20    300
+// #define  PWM_DUTYCYCLE_25    375
 
-#define  PWM_DUTYCYCLE_30    450
-#define  PWM_DUTYCYCLE_50    750
-#define  PWM_DUTYCYCLE_60    900
-#define  PWM_DUTYCYCLE_80    1200
-#define  PWM_DUTYCYCLE_90    1350
-#define  PWM_DUTYCYCLE_100   1500
+// #define  PWM_DUTYCYCLE_30    450
+// #define  PWM_DUTYCYCLE_50    750
+// #define  PWM_DUTYCYCLE_60    900
+// #define  PWM_DUTYCYCLE_80    1200
+// #define  PWM_DUTYCYCLE_90    1350
+// #define  PWM_DUTYCYCLE_100   1500
+
+
+#define  PWM_DUTYCYCLE_20    150
+#define  PWM_DUTYCYCLE_100   750
 
 #define  PWM_MIN_DUTY						PWM_DUTYCYCLE_20	// 最小占空比
 #define  PWM_MAX_DUTY						PWM_DUTYCYCLE_100	// 最大占空比

@@ -12,13 +12,13 @@
 
 
 
-#define   U_Mos_H_Pin       GPIO_Pin_10
+#define   U_Mos_H_Pin       GPIO_Pin_8
 #define   V_Mos_H_Pin       GPIO_Pin_9
-#define   W_Mos_H_Pin       GPIO_Pin_8
+#define   W_Mos_H_Pin       GPIO_Pin_10
 
-#define   U_Mos_L_Pin       GPIO_Pin_1
-#define   V_Mos_L_Pin       GPIO_Pin_0
-#define   W_Mos_L_Pin       GPIO_Pin_7
+#define   U_Mos_L_Pin       GPIO_Pin_13
+#define   V_Mos_L_Pin       GPIO_Pin_14
+#define   W_Mos_L_Pin       GPIO_Pin_15
 
 
 #define BLDC_TIMx                       TIM1

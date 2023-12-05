@@ -39,12 +39,12 @@ void Startup_Turn(void);
 		 
 void Sys_Variable_Init(void)
 {
-	 sysflags.flag_SpeedTime = 0;	
+	 sysflags.flag_SpeedTime = 0;		//标志位
 	 sysflags.Angle_Mask=0;
 	 sysflags.ChangePhase=0;
 	 sysflags.Motor_Stop=0;
 	 sysflags.System_Start=0;
-	 Sysvariable.SpeedTimeCnt = 0;	
+	 Sysvariable.SpeedTimeCnt = 0;		//变量
 	 Sysvariable.SpeedTime = 0;
 	 Sysvariable.SpeedTimeTemp = 0;
 	 Sysvariable.SpeedTimeSum = 0;
@@ -59,32 +59,32 @@ void Sys_Variable_Init(void)
 *****************************************************************************/
  void MotorInit(void)
  {
-	 Motor.PhaseCnt=0;
-	 Motor.LastPhase=0;
-	 Motor.NextPhase=0;
-	 Motor.ActualSpeed=0;
-	 Motor.Last_Speed=0;
+	Motor.PhaseCnt=0;
+	Motor.LastPhase=0;
+	Motor.NextPhase=0;
+	Motor.ActualSpeed=0;
+	Motor.Last_Speed=0;
+	
+	UserRequireSpeed = 0;	//
+	PID_Speed.Purpose = INIT_PURPOSE;
+	Mask_TIME=Low_DutyMask_Time;
+	Filter_Count=Delay_Filter;
+	
+	Flag_Charger=0;
+	Flag_adc=0;
+	Flag_OverCurr=0;
+	pos_idx=0;
+	pos_check_stage=0;
+	TIM_CCxCmd(TIM1, TIM_Channel_1, TIM_CCx_Enable); //使能上管
+	TIM_CCxCmd(TIM1, TIM_Channel_2, TIM_CCx_Enable);
+	TIM_CCxCmd(TIM1, TIM_Channel_3, TIM_CCx_Enable);
 	 
-	 UserRequireSpeed = 0;	//
-	 PID_Speed.Purpose = INIT_PURPOSE;
-	 Mask_TIME=Low_DutyMask_Time;
-	 Filter_Count=Delay_Filter;
+	GPIO_SetBits(GPIOB, U_Mos_L_Pin);  //下管截止
+	GPIO_SetBits(GPIOA, W_Mos_L_Pin);
+	GPIO_SetBits(GPIOB, V_Mos_L_Pin); 
 	 
-	 Flag_Charger=0;
-	 Flag_adc=0;
-	 Flag_OverCurr=0;
-	 pos_idx=0;
-	 pos_check_stage=0;
-	 TIM_CCxCmd(TIM1, TIM_Channel_1, TIM_CCx_Enable); //使能上管
-	 TIM_CCxCmd(TIM1, TIM_Channel_2, TIM_CCx_Enable);
-	 TIM_CCxCmd(TIM1, TIM_Channel_3, TIM_CCx_Enable);
-	 
-	 GPIO_SetBits(GPIOB, U_Mos_L_Pin);  //下管截止
-   GPIO_SetBits(GPIOA, W_Mos_L_Pin);
-   GPIO_SetBits(GPIOB, V_Mos_L_Pin); 
-	 
-	 mcState = mcAlignment;
-	 mcFault=RunNormal;
+	mcState = mcAlignment;
+	mcFault=RunNormal;
  }
  
 /*****************************************************************************
@@ -93,13 +93,13 @@ void Sys_Variable_Init(void)
  输入参数  : 无
  输出参数  : void
 *****************************************************************************/
-void MotorAlignment(void)
+void MotorAlignment(void)		//没用到
 {
-	  Motor.Duty =ALIGNMENTDUTY ;  //对齐占空比		占空比100
-	  Motor.PhaseCnt ++;   //0-1	换相
-    Startup_Turn(); //强制换向
-    Delay_ms(ALIGNMENTNMS);//对齐时间
-		EnterDragInit();  //加速初始化
+	Motor.Duty =ALIGNMENTDUTY ;  //对齐占空比		占空比100
+	Motor.PhaseCnt ++;   //0-1	换相
+	Startup_Turn(); //强制换向
+	Delay_ms(ALIGNMENTNMS);//对齐时间
+	EnterDragInit();  //加速初始化
 }	
 /*****************************************************************************
  函 数 名  : EnterDragInit
@@ -111,7 +111,7 @@ void MotorAlignment(void)
 {
 	Sysvariable.ADCTimeCnt = 0;
 	Sysvariable.DragTime = RAMP_TIM_STA;
-  mcState =  mcDrag; //初始化完成   进入加速
+	mcState =  mcDrag; //初始化完成   进入加速
 	TIM_Cmd(TIM3, ENABLE);			
 }
 /*****************************************************************************
@@ -127,8 +127,8 @@ void EnterRunInit(void)
 	Sysvariable.BlankingCnt = 0;
 	sysflags.ChangePhase=0;
 	sysflags.Angle_Mask=0;
-  TuneDutyRatioCnt=0;
- // Motor.PhaseCnt++;
+	TuneDutyRatioCnt=0;
+	// Motor.PhaseCnt++;
 	//Startup_Turn(); //强制换向
 	mcState = mcRun;
 	
@@ -150,11 +150,7 @@ void EnterRunInit(void)
 		if(Sysvariable.DragTime < RAMP_TIM_END)				// 190，168，149，...20；注意此处递减步数应该按照电机参数来设计
 		{
 			Sysvariable.DragTime = RAMP_TIM_END;		
-			
-		// if(Motor.Duty > RAMP_DUTY_END)
-    // {
-		//   Motor.Duty = RAMP_DUTY_END;
-			 EnterRunInit();		
+			EnterRunInit();		//此时强拖完成了，切换为反电势检测
 			return;
 
 	   //}
@@ -183,16 +179,16 @@ void EnterRunInit(void)
 void Startup_Turn(void) 
 {
 		if(Motor.PhaseCnt > 6) {
-				Motor.PhaseCnt = 1;
+			Motor.PhaseCnt = 1;
 		}
 		if(Motor.PhaseCnt < 1) {
-				Motor.PhaseCnt = 6;
+			Motor.PhaseCnt = 6;
 		} 
 		switch(Motor.PhaseCnt) 
 		{
 			case  1:		//此处无霍尔信号，所以顺序就是1-6；有霍尔应为651342或546231
 			{
-			MOS_Q15PWM();//UV	设置上管为PWM
+				MOS_Q15PWM();//UV	设置上管为PWM
 			//ADC1->CHSELR=ADC_CHSELR_CONFIG_W;		//通道选择，采样非导通相，即W相
 			}
 			break;
@@ -252,7 +248,7 @@ void MotorControl(void)
 	{
 		case mcInit:	// 初始化
 			MotorInit();
-		  Sys_Variable_Init();
+			Sys_Variable_Init();	
 			break;
 			
 		case mcAlignment:	// 定位
@@ -262,7 +258,7 @@ void MotorControl(void)
 			  break;
 			
 		case mcRun:	//运行
-			 SpeedController();
+			 SpeedController();		//占空比控制，可开环，可闭环，源代码是开环，后面可以换一下闭环
 			break;
 									
 		case mcReset:	// 电机立即重启
@@ -287,9 +283,9 @@ void MotorStop(void)
 {
 
 	mcState=mcStop;
-  Motor.Duty = 0;
-  Motor.PhaseCnt = 0;
-  TuneDutyRatioCnt=0;
+	Motor.Duty = 0;
+	Motor.PhaseCnt = 0;
+	TuneDutyRatioCnt=0;
 	TIM_SetCompare1(TIM1, 0);
 	TIM_SetCompare2(TIM1, 0);
 	TIM_SetCompare3(TIM1, 0);
@@ -302,35 +298,30 @@ void MotorStop(void)
 	TIM_CCxCmd(TIM1, TIM_Channel_3, TIM_CCx_Disable);
 	
  // TIM_Cmd(TIM14, DISABLE);    //失能定时器	 
-  TIM_Cmd(TIM3, DISABLE);    //失能定时器	 
+	TIM_Cmd(TIM3, DISABLE);    //失能定时器	 
 	TIM_SetCounter(TIM3,0);  //重新计数
 	TIM_SetCounter(TIM14,0);  //重新计数
 	
 	//LIN 输入与输出反向  故停止时 应该设置输入电平为高 这样输出为低--刹车
-  if(STOPMODE==BRAKEDOWN)
-  {
-			GPIO_ResetBits(GPIOB, U_Mos_L_Pin);
-			GPIO_ResetBits(GPIOA, W_Mos_L_Pin);	
-			GPIO_ResetBits(GPIOB, V_Mos_L_Pin); 
-			Delay_ms(300);
-			sysflags.Motor_Stop=1;
+	if(STOPMODE==BRAKEDOWN)
+	{
+		GPIO_ResetBits(GPIOB, U_Mos_L_Pin);
+		GPIO_ResetBits(GPIOA, W_Mos_L_Pin);	
+		GPIO_ResetBits(GPIOB, V_Mos_L_Pin); 
+		Delay_ms(300);
+		sysflags.Motor_Stop=1;
 				
 	////	//LIN 输入与输出反向  故停止时 应该设置输入电平为高 这样输出为低--自由停
- }
-  if(STOPMODE==FREEDOWN)
- {
-	  GPIO_SetBits(GPIOB, U_Mos_L_Pin);
+ 	}
+	if(STOPMODE==FREEDOWN)
+	{
+		GPIO_SetBits(GPIOB, U_Mos_L_Pin);
 		GPIO_SetBits(GPIOA, W_Mos_L_Pin);
 		GPIO_SetBits(GPIOB, V_Mos_L_Pin); 
 		//Delay_ms(300);
-	  Sysvariable.Stop_Time=POWER_DELAY;
+		Sysvariable.Stop_Time=POWER_DELAY;
 		sysflags.Motor_Stop=1;
-	
- }
-	
-
- 
-
+ 	}
 }
 
  
@@ -440,7 +431,7 @@ void UserSpeedControl(void)
 void  Charger(void)
 {
 	TIM1->CCR1 = 0;   //关上桥   
-  TIM1->CCR2 = 0;   //   
+	TIM1->CCR2 = 0;   //   
 	TIM1->CCR3 = 0;   //   
 	
 	GPIOB->BRR = U_Mos_L_Pin|V_Mos_L_Pin;  //UV下桥开
@@ -456,11 +447,11 @@ void  Charger(void)
 *****************************************************************************/
 void  All_Discharg(void)
 {
-	  TIM1->CCR1=0;
-		TIM1->CCR2=0;
-		TIM1->CCR3=0;
-		GPIOB->BSRR = U_Mos_L_Pin|V_Mos_L_Pin;  //UV下桥关
-		GPIOA->BSRR =   W_Mos_L_Pin ;  //w下管关
+	TIM1->CCR1=0;
+	TIM1->CCR2=0;
+	TIM1->CCR3=0;
+	GPIOB->BSRR = U_Mos_L_Pin|V_Mos_L_Pin;  //UV下桥关
+	GPIOA->BSRR =   W_Mos_L_Pin ;  //w下管关
 }
 /*****************************************************************************
  函 数 名  : UV_W_phase_inject
@@ -471,11 +462,11 @@ void  All_Discharg(void)
 void  UV_W_phase_inject(void)
 { 
 
-		 TIM1->CCR3 = Lock_Duty;	  //	 U上		
-		 TIM1->CCR2 = Lock_Duty;   //    V上
-	   GPIOA->BRR =   W_Mos_L_Pin ;  //w下管开
-	   Flag_adc=1;  
-	   pos_idx=0;
+	TIM1->CCR3 = Lock_Duty;	  //	 U上		
+	TIM1->CCR2 = Lock_Duty;   //    V上
+	GPIOA->BRR =   W_Mos_L_Pin ;  //w下管开
+	Flag_adc=1;  
+	pos_idx=0;
 }
 /*****************************************************************************
  函 数 名  : W_UV_phase_inject
@@ -486,10 +477,10 @@ void  UV_W_phase_inject(void)
 void  W_UV_phase_inject(void)
 {
 	
-	 TIM1->CCR1 = Lock_Duty;   //W上
-	 GPIOB->BRR = U_Mos_L_Pin|V_Mos_L_Pin;  //下桥开  uv 
-   Flag_adc=1;  
-	 pos_idx=1;	
+	TIM1->CCR1 = Lock_Duty;   //W上
+	GPIOB->BRR = U_Mos_L_Pin|V_Mos_L_Pin;  //下桥开  uv 
+	Flag_adc=1;  
+	pos_idx=1;	
 }
 /*****************************************************************************
  函 数 名  : WU_V_phase_inject
@@ -499,12 +490,11 @@ void  W_UV_phase_inject(void)
 *****************************************************************************/
 void  WU_V_phase_inject(void)
 {
-	
-   TIM1->CCR1 = Lock_Duty;   //W上
-	 TIM1->CCR3 = Lock_Duty;	 //	U上	
-	 GPIOB->BRR = V_Mos_L_Pin;  //下桥开  v  
-	 Flag_adc=1;  
-	 pos_idx=2;
+	TIM1->CCR1 = Lock_Duty;   //W上
+	TIM1->CCR3 = Lock_Duty;	 //	U上	
+	GPIOB->BRR = V_Mos_L_Pin;  //下桥开  v  
+	Flag_adc=1;  
+	pos_idx=2;
 }
 /*****************************************************************************
  函 数 名  : V_WU_phase_inject
@@ -514,11 +504,11 @@ void  WU_V_phase_inject(void)
 *****************************************************************************/
 void  V_WU_phase_inject(void)
 {  
-	 TIM1->CCR2 = Lock_Duty;   //    V上
-	 GPIOA->BRR =   W_Mos_L_Pin ;  //w下管开
-   GPIOB->BRR =   U_Mos_L_Pin ;//U下管开
-	 Flag_adc=1;  
-	 pos_idx=3;
+	TIM1->CCR2 = Lock_Duty;   //    V上
+	GPIOA->BRR =   W_Mos_L_Pin ;  //w下管开
+	GPIOB->BRR =   U_Mos_L_Pin ;//U下管开
+	Flag_adc=1;  
+	pos_idx=3;
 }
 /*****************************************************************************
  函 数 名  : VW_U_phase_inject
@@ -545,11 +535,11 @@ void  VW_U_phase_inject(void)
 void  U_VW_phase_inject(void)
 {
 	 
-	 TIM1->CCR3 = Lock_Duty;	 //	U上	
-   GPIOA->BRR =   W_Mos_L_Pin ;  //w下管开
-   GPIOB->BRR =   V_Mos_L_Pin ;//V下管开
-    Flag_adc=1;  
-	  pos_idx=5;
+	TIM1->CCR3 = Lock_Duty;	 //	U上	
+	GPIOA->BRR =   W_Mos_L_Pin ;  //w下管开
+	GPIOB->BRR =   V_Mos_L_Pin ;//V下管开
+	Flag_adc=1;  
+	pos_idx=5;
 }
 /*****************************************************************************
  函 数 名  : Align_pos_check_proc
@@ -561,145 +551,145 @@ void Align_pos_check_proc(void)
 {
 	if((Flag_adc==0)&&(Flag_Charger==0))  //电流采集并且充电完成
 	{
-				switch(pos_check_stage)//
+		switch(pos_check_stage)//
+		{
+			case 0: //先充电	
+				Charger();
+				pos_check_stage = 10;
+				break;
+			case 10://第一个脉冲注入
+				UV_W_phase_inject();
+				pos_check_stage = 1;
+				break;
+			
+			case 1: //充电
+				Charger();
+				pos_check_stage = 20;
+				break;
+			case  20://第二个脉冲注入
+				W_UV_phase_inject();
+				pos_check_stage = 3;
+				break; 
+			
+			case 3: //充电	
+				Charger();
+				pos_check_stage =30;
+				break;
+			case 30://第三个脉冲注入
+				WU_V_phase_inject();
+				pos_check_stage =4;
+				break; 
+			case 4://充电
+				Charger();
+				pos_check_stage =40;
+				break;
+			case 40://第四个脉冲注入
+				V_WU_phase_inject();
+				pos_check_stage =5;
+				break;
+			case 5://充电
+				Charger();
+				pos_check_stage =50;
+				break;
+			case 50://第五个脉冲注入
+				VW_U_phase_inject();		   
+				pos_check_stage =6;
+				break;
+			case 6://充电
+				Charger();
+				pos_check_stage =60;
+				break;
+			case 60://第六个脉冲注入
+				U_VW_phase_inject();
+				pos_check_stage =7;
+				break;
+			case 7://
+				PhaseCnt=0;
+			//电流比较获取位置
+				if(ADC_check_buf[0]<=ADC_check_buf[1])PhaseCnt|= 0x04;  
+				if(ADC_check_buf[2]<=ADC_check_buf[3])PhaseCnt|= 0x02;
+				if(ADC_check_buf[4]<=ADC_check_buf[5])PhaseCnt|= 0x01;	
+				Initial_stage= PhaseCnt; //测试用的  看位置变量
+				Flag_OverCurr=1;         //打完脉冲之后  使能硬件过流保护
+#if 1
+				All_Discharg();
+#endif
+				//Motor.PhaseCnt=PhaseCnt;
+				Motor.Duty =ALIGNMENTDUTY ;
+				switch(PhaseCnt)		//此时预定位完成
 				{
-					case 0: //先充电	
-								Charger();
-								pos_check_stage = 10;
-								break;
-					case 10://第一个脉冲注入
-								UV_W_phase_inject();
-								pos_check_stage = 1;
-								break;
+					case  5:  
+					{
+						Motor.PhaseCnt=1;
+						Startup_Turn(); //强制换向
+						Delay_ms(ALIGNMENTNMS);//对齐时间
+						EnterDragInit();
+					}
+					break;
 					
-					case 1: //充电
-								 Charger();
-								 pos_check_stage = 20;
-								 break;
-					case  20://第二个脉冲注入
-								 W_UV_phase_inject();
-								 pos_check_stage = 3;
-								 break; 
+					case  1:   
+					{
+						Motor.PhaseCnt=2;
+						Startup_Turn(); //强制换向
+						Delay_ms(ALIGNMENTNMS);//对齐时间
+						EnterDragInit();
+
+					}
+					break;
+
+					case  3:
+					{
+						Motor.PhaseCnt=3;
+						Startup_Turn(); //强制换向
+						Delay_ms(ALIGNMENTNMS);//对齐时间
+						EnterDragInit();
+
+					}
+					break;
+				
+					case  2:     
+					{
+						Motor.PhaseCnt=4;
+						Startup_Turn(); //强制换向
+						Delay_ms(ALIGNMENTNMS);//对齐时间
+						EnterDragInit();
+
+					}
+					break;
 					
-					case 3: //充电	
-								  Charger();
-									pos_check_stage =30;
-					        break;
-					case 30://第三个脉冲注入
-								 WU_V_phase_inject();
-								 pos_check_stage =4;
-								 break; 
-					case 4://充电
-								 Charger();
-								 pos_check_stage =40;
-								 break;
-					case 40://第四个脉冲注入
-								 V_WU_phase_inject();
-								 pos_check_stage =5;
-								 break;
-					case 5://充电
-								Charger();
-					      pos_check_stage =50;
-								break;
-					case 50://第五个脉冲注入
-								VW_U_phase_inject();		   
-								pos_check_stage =6;
-								break;
-					case 6://充电
-								Charger();
-								pos_check_stage =60;
-					      break;
-					case 60://第六个脉冲注入
-								U_VW_phase_inject();
-								pos_check_stage =7;
-				    		break;
-					case 7://
-						  PhaseCnt=0;
-					    //电流比较获取位置
-						  if(ADC_check_buf[0]<=ADC_check_buf[1])PhaseCnt|= 0x04;  
-							if(ADC_check_buf[2]<=ADC_check_buf[3])PhaseCnt|= 0x02;
-							if(ADC_check_buf[4]<=ADC_check_buf[5])PhaseCnt|= 0x01;	
-							Initial_stage= PhaseCnt; //测试用的  看位置变量
-							Flag_OverCurr=1;         //打完脉冲之后  使能硬件过流保护
-						 #if 1
-					    All_Discharg();
-					   #endif
-					    //Motor.PhaseCnt=PhaseCnt;
-              Motor.Duty =ALIGNMENTDUTY ;
-				  	  switch(PhaseCnt)
-							{
-								case  5:  
-								{
-									Motor.PhaseCnt=1;
-									Startup_Turn(); //强制换向
-                  Delay_ms(ALIGNMENTNMS);//对齐时间
-									EnterDragInit();
-								}
-								break;
-								
-								case  1:   
-								{
-									Motor.PhaseCnt=2;
-									Startup_Turn(); //强制换向
-                  Delay_ms(ALIGNMENTNMS);//对齐时间
-									EnterDragInit();
+					case  6:    
+					{
+						Motor.PhaseCnt=5;
+						Startup_Turn(); //强制换向
+						Delay_ms(ALIGNMENTNMS);//对齐时间
+						EnterDragInit();
 
-								}
-								break;
+					}
+					break;
+					
+					case  4:    
+					{
+						Motor.PhaseCnt=6;
+						Startup_Turn(); //强制换向
+						Delay_ms(ALIGNMENTNMS);//对齐时间
+						EnterDragInit();
+					}
+					break;	
 
-								case  3:
-								{
-									Motor.PhaseCnt=3;
-									Startup_Turn(); //强制换向
-                  Delay_ms(ALIGNMENTNMS);//对齐时间
-									EnterDragInit();
-
-								}
-								break;
-							
-								case  2:     
-								{
-									Motor.PhaseCnt=4;
-									Startup_Turn(); //强制换向
-                  Delay_ms(ALIGNMENTNMS);//对齐时间
-									EnterDragInit();
-
-								}
-								break;
-								
-								case  6:    
-								{
-									Motor.PhaseCnt=5;
-                	Startup_Turn(); //强制换向
-                  Delay_ms(ALIGNMENTNMS);//对齐时间
-									EnterDragInit();
-
-								}
-								break;
-								
-								case  4:    
-								{
-									Motor.PhaseCnt=6;
-									Startup_Turn(); //强制换向
-                  Delay_ms(ALIGNMENTNMS);//对齐时间
-									EnterDragInit();
-								}
-								break;	
-								default:
-								{
-									Startup_Turn(); //强制换向
-                  Delay_ms(ALIGNMENTNMS);//对齐时间
-									MotorStop();
-
-								}
-								break;
-							}
-							pos_check_stage=70;
-							break;
 					default:
-						break;
-			 }
-		}	
-	
+					{
+						Startup_Turn(); //强制换向
+						Delay_ms(ALIGNMENTNMS);//对齐时间
+						MotorStop();
+
+					}
+					break;
+				}
+				pos_check_stage=70;
+				break;
+			default:
+				break;
+		}
+	}	
 }
 #endif

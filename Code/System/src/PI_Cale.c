@@ -61,14 +61,14 @@ void CalcAvgSpeedTime(void)
 	
 	TIM14->ARR=Sysvariable.DelayTime30;
 	TIM14->CR1|=0x0001;       //打开定时器
-  TIM14->CNT = 0;
+	TIM14->CNT = 0;
 	
 	Sysvariable.SpeedTimeTemp=TIM3->CNT; //过零点时间间隔  60°
 	TIM3->CNT = 0;
 	
 	Sysvariable.DelayTime30=(uint16_t)(Sysvariable.SpeedTimeTemp/2); 
-  Sysvariable.SpeedTime=Sysvariable.SpeedTimeTemp;
-  sysflags.ChangePhase=1; //开始换向	
+	Sysvariable.SpeedTime=Sysvariable.SpeedTimeTemp;
+	sysflags.ChangePhase=1; //开始换向	
 }
 /*****************************************************************************
  函 数 名  : SpeedController
@@ -83,10 +83,10 @@ void CalcAvgSpeedTime(void)
 			if(TuneDutyRatioCnt >= SPEEDLOOPCNT)	// 速度环
 			{
 					
-					TuneDutyRatioCnt = 0;
-					Motor.Last_Speed = SPEEDFACTOR / Sysvariable.SpeedTime;     
-					FirstOrder_LPF_Cacl(Motor.Last_Speed,Motor.ActualSpeed,0.06);
-					bldcSpeedControlTime(UserRequireSpeed,Motor.ActualSpeed);
+				TuneDutyRatioCnt = 0;
+				Motor.Last_Speed = SPEEDFACTOR / Sysvariable.SpeedTime;     
+				FirstOrder_LPF_Cacl(Motor.Last_Speed,Motor.ActualSpeed,0.06);
+				bldcSpeedControlTime(UserRequireSpeed,Motor.ActualSpeed);
 			}
 	}
 
@@ -165,24 +165,26 @@ void CalcAvgSpeedTime(void)
 void bldcSpeedControlTime(int32_t Idle_SpeedValue,int32_t Actual_SpeedValue)
 {
     float    SpeedTemp;                                                         /* 临时变量                     */
-	  if ( PID_Speed.Purpose == INIT_PURPOSE ) 
-		{			  	
-					PID_Speed.fpAllErr=0;
-          PID_Speed.Purpose = RUN_PURPOSE;
-     }	
-		 PID_Speed.Error=Idle_SpeedValue -Actual_SpeedValue;		 
-		 PID_Speed.fpAllErr+=PID_Speed.Error*PID_Speed.Kp;
-	   PID_Speed.Ui=PID_Speed.Ki*PID_Speed.fpAllErr; 
-		 if ( PID_Speed.fpAllErr > PID_Speed.MaxValue/PID_Speed.Ki) {              /* 控制积分上限 输出最大电流是9000MA  */
-         PID_Speed.fpAllErr = PID_Speed.MaxValue/PID_Speed.Ki;
-     }
-		 if ( PID_Speed.fpAllErr < PID_Speed.MinValue/PID_Speed.Ki) {              /* 控制积分下限 输出最小电流值*/
-				 PID_Speed.fpAllErr = PID_Speed.MinValue/PID_Speed.Ki;
-     }
+	if ( PID_Speed.Purpose == INIT_PURPOSE ) 
+	{			  	
+		PID_Speed.fpAllErr=0;
+		PID_Speed.Purpose = RUN_PURPOSE;
+	}	
+	PID_Speed.Error=Idle_SpeedValue -Actual_SpeedValue;		 
+	PID_Speed.fpAllErr+=PID_Speed.Error*PID_Speed.Kp;
+	PID_Speed.Ui=PID_Speed.Ki*PID_Speed.fpAllErr; 
+	if ( PID_Speed.fpAllErr > PID_Speed.MaxValue/PID_Speed.Ki) 	/* 控制积分上限 输出最大电流是9000MA  */
+	{              
+		PID_Speed.fpAllErr = PID_Speed.MaxValue/PID_Speed.Ki;
+	}
+	if ( PID_Speed.fpAllErr < PID_Speed.MinValue/PID_Speed.Ki) /* 控制积分下限 输出最小电流值*/
+	{              
+		PID_Speed.fpAllErr = PID_Speed.MinValue/PID_Speed.Ki;
+	}
 	
-		SpeedTemp=PID_Speed.Kp*PID_Speed.Error+PID_Speed.Ui;
+	SpeedTemp=PID_Speed.Kp*PID_Speed.Error+PID_Speed.Ui;
 		 			
-		PID_Speed.Out = SpeedTemp;
+	PID_Speed.Out = SpeedTemp;
 			
    if (PID_Speed.Out >= PID_Speed.Max) {                               /* 占空比上下限限制             */
         PID_Speed.Out = PID_Speed.Max;

@@ -34,7 +34,7 @@ void NVIC_Configuration(void)//100us        //配置中断函数优先级
     /* Enable the TIM2 Interrupt    用来100us定时用的  */
     NVIC_InitStructure.NVIC_IRQChannel = TIM2_IRQn;                 //配置中断源
     NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0;       //配置抢占优先级
-    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;              //配置子优先级
+    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 2;              //配置子优先级
     NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;                 //使能中断通道
     NVIC_Init(&NVIC_InitStructure);                                 //调用初始化函数
     
@@ -48,6 +48,13 @@ void NVIC_Configuration(void)//100us        //配置中断函数优先级
     /*TIM1_CC_IRQn               定时器1比较中断     注意到定时器1比较特殊，不象通用定时器，通用定时器中断只有1个，而定时器1有4个单独的中断矢量        */
     NVIC_InitStructure.NVIC_IRQChannel = TIM1_CC_IRQn;
     NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 1;
+    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 1;
+    NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+    NVIC_Init(&NVIC_InitStructure);
+
+	/* Enable the DMA Interrupt */
+	NVIC_InitStructure.NVIC_IRQChannel = DMA1_Channel1_IRQn;
+    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0;
     NVIC_InitStructure.NVIC_IRQChannelSubPriority = 1;
     NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
     NVIC_Init(&NVIC_InitStructure);
@@ -131,7 +138,6 @@ static void ADC1_Mode_Config(void)
 	ADC_RegularChannelConfig(ADC1, PCB_Temp_Channel, 6, ADC_SampleTime_55Cycles5); 
     //ADC_RegularChannelConfig(ADC1, PCB_Temp_Channel, 3, ADC_SampleTime_55Cycles5);  
 
-
     /* ADC1 configuration */     
     ADC_InitStructure.ADC_Mode = ADC_Mode_Independent;  /*独立 ADC 模式*/   //只用ADC1
     ADC_InitStructure.ADC_ScanConvMode = ENABLE ;   /*扫描模式，扫描模式用于多通道采集*/   
@@ -140,6 +146,8 @@ static void ADC1_Mode_Config(void)
     ADC_InitStructure.ADC_DataAlign = ADC_DataAlign_Right;  /*采集数据右对齐*/   
     ADC_InitStructure.ADC_NbrOfChannel = 5;     /*要转换的通道数目 6*/   
     ADC_Init(ADC1, &ADC_InitStructure);   
+
+	DMA_ITConfig(DMA1_Channel1, DMA_IT_TC , ENABLE);
        
     /* 开启内部温度传感器和 Vrefint 通道 */
     ADC_TempSensorVrefintCmd(ENABLE);
@@ -237,97 +245,104 @@ uint16_t Filter_AverageCalc(uint16_t *buffer, uint16_t n)
 void BemfCheck(void)  
 { 
 	static uint16_t  V_Bus_Half=0; 
-  if(sysflags.Angle_Mask==0)//等待续流结束
-	{
-		Motor.Bemf=RegularConvData_Tab[4]; 				//待修改 改为0 | 1 | 3，需要先判断导通相
+	if(sysflags.Angle_Mask==0)//等待续流结束
+	{	
+		if(Motor.PhaseCnt == 3 || Motor.PhaseCnt == 6)		//采样U相
+		{
+			Motor.Bemf=RegularConvData_Tab[0];
+		}
+		else if(Motor.PhaseCnt == 2 || Motor.PhaseCnt == 5)	//采样V相
+		{
+			Motor.Bemf=RegularConvData_Tab[1];
+		}
+		else if(Motor.PhaseCnt == 1 || Motor.PhaseCnt == 4)	//采样W相
+		{
+			Motor.Bemf=RegularConvData_Tab[3];
+		}
+		//Motor.Bemf=RegularConvData_Tab[4]; 		//端电压采样	//待修改 改为0 | 1 | 3，需要先判断导通相
 		V_Bus_Half=(uint16_t)(RegularConvData_Tab[2]*0.5);	//母线电压的一半
 	}
 	if((sysflags.ChangePhase==0)&&(sysflags.Angle_Mask==0))
 	{
-	
 		switch(Motor.PhaseCnt)
 		{
 			case 1:
-			       if(Motor.Bemf<V_Bus_Half)   
-						 {
-							   Sysvariable.BlankingCnt++;
-							   if(Sysvariable.BlankingCnt>=Filter_Count)	//滤波延迟补偿
-								 {
-									 Sysvariable.BlankingCnt=0;
-									 Motor.PhaseCnt = 2;      	//换相		
-							     CalcSpeedTime();  	
-								 }									 
-				     }	 						
-						 break;
+				if(Motor.Bemf<V_Bus_Half)   
+				{
+					Sysvariable.BlankingCnt++;
+					if(Sysvariable.BlankingCnt>=Filter_Count)	//滤波延迟补偿
+					{
+						Sysvariable.BlankingCnt=0;
+						Motor.PhaseCnt = 2;      	//换相		
+						CalcSpeedTime();  	
+					}									 
+				}	 						
+				break;
 						 
-			 case 2:
-						 if(Motor.Bemf>V_Bus_Half)		//为什么是大于？
-						 {
-							   Sysvariable.BlankingCnt++;
-							   if(Sysvariable.BlankingCnt>=Filter_Count)
-								 {
-									Sysvariable.BlankingCnt=0;
-									Motor.PhaseCnt =3;
-									CalcSpeedTime();
-								 }
-					   }
-						 break;
-				case 3:
-					   if(Motor.Bemf<V_Bus_Half)
-						 {
-							   Sysvariable.BlankingCnt++;
-							   if(Sysvariable.BlankingCnt>=Filter_Count)
-								 {
-									Sysvariable.BlankingCnt=0;
-									Motor.PhaseCnt =4;
-									CalcSpeedTime();	
-								 }									 
-						 }
-						 break;
-				 case 4:
-						 if(Motor.Bemf>V_Bus_Half)
-						 {
-							   Sysvariable.BlankingCnt++;
-							   if(Sysvariable.BlankingCnt>=Filter_Count)
-								 {
-									 Sysvariable.BlankingCnt=0;
-									 Motor.PhaseCnt =5;
-									 CalcSpeedTime();
-								 }
-						 }
-						 break;
-			  case 5:
-						 if(Motor.Bemf<V_Bus_Half)
-						 {
-							   Sysvariable.BlankingCnt++;
-							   if(Sysvariable.BlankingCnt>=Filter_Count)
-								 {
-									 	Sysvariable.BlankingCnt=0;
-										Motor.PhaseCnt =6;
-										CalcSpeedTime();	
-								 }									 
-						 }
-						 break;
-					case 6:
-						 if(Motor.Bemf>V_Bus_Half)
-						 {
-								 Sysvariable.BlankingCnt++;
-							   if(Sysvariable.BlankingCnt>=Filter_Count)
-								 {
-									 Sysvariable.BlankingCnt=0;
-									 Motor.PhaseCnt =1;
-									 CalcSpeedTime();
-								 }
-						 }																 
-				
-						 break;
-					default:
-						  break;
+			case 2:
+			if(Motor.Bemf>V_Bus_Half)		//为什么是大于？
+			{
+				Sysvariable.BlankingCnt++;
+				if(Sysvariable.BlankingCnt>=Filter_Count)
+				{
+					Sysvariable.BlankingCnt=0;
+					Motor.PhaseCnt =3;
+					CalcSpeedTime();
+				}
+			}
+			break;
+			case 3:
+				if(Motor.Bemf<V_Bus_Half)
+				{
+					Sysvariable.BlankingCnt++;
+					if(Sysvariable.BlankingCnt>=Filter_Count)
+					{
+						Sysvariable.BlankingCnt=0;
+						Motor.PhaseCnt =4;
+						CalcSpeedTime();	
+					}									 
+				}
+				break;
+			case 4:
+				if(Motor.Bemf>V_Bus_Half)
+				{
+					Sysvariable.BlankingCnt++;
+					if(Sysvariable.BlankingCnt>=Filter_Count)
+					{
+						Sysvariable.BlankingCnt=0;
+						Motor.PhaseCnt =5;
+						CalcSpeedTime();
+					}
+				}
+				break;
+			case 5:
+				if(Motor.Bemf<V_Bus_Half)
+				{
+					Sysvariable.BlankingCnt++;
+					if(Sysvariable.BlankingCnt>=Filter_Count)
+					{
+						Sysvariable.BlankingCnt=0;
+						Motor.PhaseCnt =6;
+						CalcSpeedTime();	
+					}									 
+				}
+				break;
+			case 6:
+				if(Motor.Bemf>V_Bus_Half)
+				{
+					Sysvariable.BlankingCnt++;
+					if(Sysvariable.BlankingCnt>=Filter_Count)
+					{
+						Sysvariable.BlankingCnt=0;
+						Motor.PhaseCnt =1;
+						CalcSpeedTime();
+					}
+				}																 
+				break;
+			default:
+				break;
 		}
-	}
-
-
-	 
+	} 
 }
 /*****************************************************************************
  函 数 名  : JudgeErrorCommutation
@@ -510,15 +525,13 @@ void Angle_Dealwith(void)
 {
 	if(Motor.Duty<DUTYTHRESHOLD1)//低duty
 	{
-		  Mask_TIME =Low_DutyMask_Time ;  //续流屏蔽时间  time*4us
-      Filter_Count=Delay_Filter;
-		
-
+		Mask_TIME =Low_DutyMask_Time ;  //续流屏蔽时间  time*4us
+		Filter_Count=Delay_Filter;
 	}
 	else//高duty
 	{
-		  Mask_TIME =High_DutyMask_Time; 
-      Filter_Count=1;
+		Mask_TIME =High_DutyMask_Time; 
+		Filter_Count=1;
 	}
 	
 }
