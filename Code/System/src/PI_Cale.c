@@ -59,12 +59,12 @@ void CalcAvgSpeedTime(void)
  void CalcSpeedTime(void)
 {	 
 	
-	TIM14->ARR=Sysvariable.DelayTime30;
-	TIM14->CR1|=0x0001;       //打开定时器
-	TIM14->CNT = 0;
+	TIM4->ARR=Sysvariable.DelayTime30;
+	TIM4->CR1|=0x0001;       //打开定时器
+	TIM4->CNT = 0;
 	
-	Sysvariable.SpeedTimeTemp=TIM3->CNT; //过零点时间间隔  60°
-	TIM3->CNT = 0;
+	Sysvariable.SpeedTimeTemp=TIM2->CNT; //过零点时间间隔  60°
+	TIM2->CNT = 0;
 	
 	Sysvariable.DelayTime30=(uint16_t)(Sysvariable.SpeedTimeTemp/2); 
 	Sysvariable.SpeedTime=Sysvariable.SpeedTimeTemp;

@@ -34,14 +34,27 @@
 // #define  PWM_DUTYCYCLE_100   1500
 
 
-#define  PWM_DUTYCYCLE_20    150
-#define  PWM_DUTYCYCLE_100   750
+// #define  PWM_DUTYCYCLE_20    600
+// #define  PWM_DUTYCYCLE_100   3000
 
-#define  PWM_MIN_DUTY						PWM_DUTYCYCLE_20	// 最小占空比
-#define  PWM_MAX_DUTY						PWM_DUTYCYCLE_100	// 最大占空比
+#define  PWM_DUTYCYCLE_05    150
+#define  PWM_DUTYCYCLE_10    300
+#define  PWM_DUTYCYCLE_15    450
+#define  PWM_DUTYCYCLE_20    600
+#define  PWM_DUTYCYCLE_25    750
 
-#define    MINIMUMSPEED        5000    //最小转速
-#define    MAXIMUMSPEED				22000	 // 电机最大转   DELTADUTYCYCLE		  30
+#define  PWM_DUTYCYCLE_30    900
+#define  PWM_DUTYCYCLE_50    1500
+#define  PWM_DUTYCYCLE_60    1800
+#define  PWM_DUTYCYCLE_80    2400
+#define  PWM_DUTYCYCLE_90    2700
+#define  PWM_DUTYCYCLE_100   3000
+
+#define  PWM_MIN_DUTY			PWM_DUTYCYCLE_20	// 最小占空比
+#define  PWM_MAX_DUTY			PWM_DUTYCYCLE_100	// 最大占空比
+
+// #define    MINIMUMSPEED        5000    //最小转速
+// #define    MAXIMUMSPEED				22000	 // 电机最大转   DELTADUTYCYCLE		  30
 
 
 //电位器和给定速度的系数  
@@ -54,6 +67,8 @@
 
 
 #define  Motor_DelayTime   6000
+
+#define MOTOR_BRAKE_ENABLE 0//1为启用刹车功能
 
 
 
@@ -134,8 +149,9 @@ GLOBAL_BLDC_  uint8_t  Flag_adc;
 GLOBAL_BLDC_  uint8_t  Charger_Time;
 GLOBAL_BLDC_  uint8_t  Flag_Charger;
 GLOBAL_BLDC_  uint8_t  Flag_OverCurr;
-GLOBAL_BLDC_ uint16_t    usTmsAvrgDly;
+GLOBAL_BLDC_  uint16_t    usTmsAvrgDly;
 GLOBAL_BLDC_  uint16_t   UserSpeedSample;
+GLOBAL_BLDC_  uint16_t  test_idx;
 GLOBAL_BLDC_ void  MotorInit(void);
 GLOBAL_BLDC_ void  Startup_Turn(void) ;
 GLOBAL_BLDC_ void  MotorStop(void);

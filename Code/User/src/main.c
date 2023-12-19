@@ -28,14 +28,11 @@ int main(void)
 	Sys_Variable_Init();
 	BLDC_GPIO_Config();         //BLDC GPIO初始化
 	Exti_Config();
-	// Delay_ms(20);
 	NVIC_Configuration();		//NVIC初始化
 	ADC_Configuration();        //ADC初始化
-	// Delay_ms(20);
 	TIM1_Config();              //定时器 PWM初始化
 	TIM2_Config();              //定时器初始化  
 	TIM4_Config();
-	// Delay_ms(20);
 	mcState=mcStop;
 
 	while(1)
@@ -50,7 +47,7 @@ int main(void)
 			{
 				if(ADJ_MODE==STEPLESS_SPEED)
 				{
-					UserSpeedSample =RegularConvData_Tab[1] ;   //获取电位器AD值0-4095	//Instance current
+					UserSpeedSample =RegularConvData_Tab[4] ;   //获取电位器AD值0-4095	//Instance current
 					if(UserSpeedSample<RHEOSTATMIN)							//200
 					{
 						MasterState=Startup;

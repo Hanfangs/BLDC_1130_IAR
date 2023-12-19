@@ -22,6 +22,7 @@ uint8_t  Flag_adc=0;
 uint8_t  Charger_Time=0;
 uint8_t  Flag_Charger=0;
 uint8_t  Flag_OverCurr=0;
+uint16_t  test_idx=0;
 BLDC Motor={                                                          /* 电机结构体        */
              OPEN_LOOP_Halless,                                     /* 电机控制方式      */
              BLDCSTOP,                                                /* 电机状态          */
@@ -75,13 +76,14 @@ void Sys_Variable_Init(void)
 	Flag_OverCurr=0;
 	pos_idx=0;
 	pos_check_stage=0;
-	TIM_CCxCmd(TIM1, TIM_Channel_1, TIM_CCx_Enable); //使能上管
-	TIM_CCxCmd(TIM1, TIM_Channel_2, TIM_CCx_Enable);
-	TIM_CCxCmd(TIM1, TIM_Channel_3, TIM_CCx_Enable);
+	// TIM_CCxCmd(TIM1, TIM_Channel_1, TIM_CCx_Enable); //使能上管
+	// TIM_CCxCmd(TIM1, TIM_Channel_2, TIM_CCx_Enable);
+	// TIM_CCxCmd(TIM1, TIM_Channel_3, TIM_CCx_Enable);
 	 
-	GPIO_SetBits(GPIOB, U_Mos_L_Pin);  //下管截止
-	GPIO_SetBits(GPIOA, W_Mos_L_Pin);
-	GPIO_SetBits(GPIOB, V_Mos_L_Pin); 
+	// GPIO_SetBits(GPIOB, U_Mos_L_Pin);  //下管截止
+	// GPIO_SetBits(GPIOB, W_Mos_L_Pin);
+	// GPIO_SetBits(GPIOB, V_Mos_L_Pin); 
+	Start_Motor();
 	 
 	mcState = mcAlignment;
 	mcFault=RunNormal;
@@ -109,10 +111,11 @@ void MotorAlignment(void)		//没用到
 *****************************************************************************/
  void EnterDragInit(void)
 {
+	Motor.Duty =ALIGNMENTDUTY ; 
 	Sysvariable.ADCTimeCnt = 0;
 	Sysvariable.DragTime = RAMP_TIM_STA;
 	mcState =  mcDrag; //初始化完成   进入加速
-	TIM_Cmd(TIM3, ENABLE);			
+	TIM_Cmd(TIM2, ENABLE);			
 }
 /*****************************************************************************
  函 数 名  : EnterRunInit
@@ -156,9 +159,9 @@ void EnterRunInit(void)
 	   //}
 		}
 		Motor.PhaseCnt++;		//步进一次，换相一次
-		Sysvariable.DelayTime30=TIM3->CNT; //过零点时间间隔，从0到一次换相的时间，就是一个过零点的时间间隔
+		Sysvariable.DelayTime30=TIM2->CNT; //过零点时间间隔，从0到一次换相的时间，就是一个过零点的时间间隔
 		Startup_Turn(); //换向
-		TIM3->CNT = 0;
+		TIM2->CNT = 0;
 		Sysvariable.DelayTime30=Sysvariable.DelayTime30/2;		//过零点间隔是60个电角度
 	}
 	if(Motor.Duty < RAMP_DUTY_STA)	// 限制输出占空比的最大最小值		100-300
@@ -252,6 +255,7 @@ void MotorControl(void)
 			break;
 			
 		case mcAlignment:	// 定位
+			//Align_pos_check_proc();
 		   	break;
 			
 		case mcDrag:	// 强拖				
@@ -298,15 +302,15 @@ void MotorStop(void)
 	TIM_CCxCmd(TIM1, TIM_Channel_3, TIM_CCx_Disable);
 	
  // TIM_Cmd(TIM14, DISABLE);    //失能定时器	 
-	TIM_Cmd(TIM3, DISABLE);    //失能定时器	 
-	TIM_SetCounter(TIM3,0);  //重新计数
-	TIM_SetCounter(TIM14,0);  //重新计数
+	TIM_Cmd(TIM2, DISABLE);    //失能定时器	 
+	TIM_SetCounter(TIM2,0);  //重新计数
+	TIM_SetCounter(TIM4,0);  //重新计数
 	
 	//LIN 输入与输出反向  故停止时 应该设置输入电平为高 这样输出为低--刹车
 	if(STOPMODE==BRAKEDOWN)
 	{
 		GPIO_ResetBits(GPIOB, U_Mos_L_Pin);
-		GPIO_ResetBits(GPIOA, W_Mos_L_Pin);	
+		GPIO_ResetBits(GPIOB, W_Mos_L_Pin);	
 		GPIO_ResetBits(GPIOB, V_Mos_L_Pin); 
 		Delay_ms(300);
 		sysflags.Motor_Stop=1;
@@ -316,7 +320,7 @@ void MotorStop(void)
 	if(STOPMODE==FREEDOWN)
 	{
 		GPIO_SetBits(GPIOB, U_Mos_L_Pin);
-		GPIO_SetBits(GPIOA, W_Mos_L_Pin);
+		GPIO_SetBits(GPIOB, W_Mos_L_Pin);
 		GPIO_SetBits(GPIOB, V_Mos_L_Pin); 
 		//Delay_ms(300);
 		Sysvariable.Stop_Time=POWER_DELAY;
@@ -422,6 +426,7 @@ void UserSpeedControl(void)
     }
   }
 }
+#if 0
 /*****************************************************************************
  函 数 名  : Charger
  功能描述  : 充电
@@ -435,7 +440,7 @@ void  Charger(void)
 	TIM1->CCR3 = 0;   //   
 	
 	GPIOB->BRR = U_Mos_L_Pin|V_Mos_L_Pin;  //UV下桥开
-	GPIOA->BRR =   W_Mos_L_Pin ;  //w下管开
+	GPIOB->BRR = W_Mos_L_Pin ;  //w下管开
 	Flag_Charger=1;  //充电标志位
 
 }
@@ -445,13 +450,12 @@ void  Charger(void)
  输入参数  : 无
  输出参数  : void
 *****************************************************************************/
-void  All_Discharg(void)
+void  All_Discharg(void)	
 {
 	TIM1->CCR1=0;
 	TIM1->CCR2=0;
 	TIM1->CCR3=0;
-	GPIOB->BSRR = U_Mos_L_Pin|V_Mos_L_Pin;  //UV下桥关
-	GPIOA->BSRR =   W_Mos_L_Pin ;  //w下管关
+	GPIOB->BSRR = U_Mos_L_Pin | V_Mos_L_Pin | W_Mos_L_Pin;  //UVW下桥关
 }
 /*****************************************************************************
  函 数 名  : UV_W_phase_inject
@@ -459,12 +463,12 @@ void  All_Discharg(void)
  输入参数  : 无
  输出参数  : void
 *****************************************************************************/
-void  UV_W_phase_inject(void)
+void  UV_W_phase_inject(void)	//110
 { 
 
-	TIM1->CCR3 = Lock_Duty;	  //	 U上		
+	TIM1->CCR1 = Lock_Duty;	  //	 U上		
 	TIM1->CCR2 = Lock_Duty;   //    V上
-	GPIOA->BRR =   W_Mos_L_Pin ;  //w下管开
+	GPIOB->BRR = W_Mos_L_Pin ;  //w下管开
 	Flag_adc=1;  
 	pos_idx=0;
 }
@@ -474,10 +478,10 @@ void  UV_W_phase_inject(void)
  输入参数  : 无
  输出参数  : void
 *****************************************************************************/
-void  W_UV_phase_inject(void)
+void  W_UV_phase_inject(void)	//001
 {
 	
-	TIM1->CCR1 = Lock_Duty;   //W上
+	TIM1->CCR3 = Lock_Duty;   //W上
 	GPIOB->BRR = U_Mos_L_Pin|V_Mos_L_Pin;  //下桥开  uv 
 	Flag_adc=1;  
 	pos_idx=1;	
@@ -488,10 +492,10 @@ void  W_UV_phase_inject(void)
  输入参数  : 无
  输出参数  : void
 *****************************************************************************/
-void  WU_V_phase_inject(void)
+void  WU_V_phase_inject(void)	//101
 {
-	TIM1->CCR1 = Lock_Duty;   //W上
-	TIM1->CCR3 = Lock_Duty;	 //	U上	
+	TIM1->CCR1 = Lock_Duty;   //U上
+	TIM1->CCR3 = Lock_Duty;	 //	W上	
 	GPIOB->BRR = V_Mos_L_Pin;  //下桥开  v  
 	Flag_adc=1;  
 	pos_idx=2;
@@ -502,11 +506,11 @@ void  WU_V_phase_inject(void)
  输入参数  : 无
  输出参数  : void
 *****************************************************************************/
-void  V_WU_phase_inject(void)
+void  V_WU_phase_inject(void)	//010
 {  
 	TIM1->CCR2 = Lock_Duty;   //    V上
-	GPIOA->BRR =   W_Mos_L_Pin ;  //w下管开
-	GPIOB->BRR =   U_Mos_L_Pin ;//U下管开
+	GPIOB->BRR = W_Mos_L_Pin ;  //w下管开
+	GPIOB->BRR = U_Mos_L_Pin ;//U下管开
 	Flag_adc=1;  
 	pos_idx=3;
 }
@@ -516,12 +520,12 @@ void  V_WU_phase_inject(void)
  输入参数  : 无
  输出参数  : void
 *****************************************************************************/
-void  VW_U_phase_inject(void)
+void  VW_U_phase_inject(void)	//011
 {
 
-	 TIM1->CCR1 = Lock_Duty;   //W上
-	 TIM1->CCR2 = Lock_Duty;	 //	V上	
-	 GPIOB->BRR =   U_Mos_L_Pin ;//U下管开
+	 TIM1->CCR2 = Lock_Duty;   //W上
+	 TIM1->CCR3 = Lock_Duty;	 //	V上	
+	 GPIOB->BRR = U_Mos_L_Pin ;//U下管开
 	 Flag_adc=1;  
 	 pos_idx=4;
 	
@@ -532,164 +536,337 @@ void  VW_U_phase_inject(void)
  输入参数  : 无
  输出参数  : void
 *****************************************************************************/
-void  U_VW_phase_inject(void)
+void  U_VW_phase_inject(void)	//100
 {
 	 
-	TIM1->CCR3 = Lock_Duty;	 //	U上	
-	GPIOA->BRR =   W_Mos_L_Pin ;  //w下管开
-	GPIOB->BRR =   V_Mos_L_Pin ;//V下管开
+	TIM1->CCR1 = Lock_Duty;	 //	U上	
+	GPIOB->BRR = W_Mos_L_Pin ;  //w下管开
+	GPIOB->BRR = V_Mos_L_Pin ;//V下管开
 	Flag_adc=1;  
 	pos_idx=5;
 }
+#else
+//------------------------------------------------------------------------------------------------------
+// void  Charger(void)
+// {
+// 	TIM_CCxCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCx_Disable);
+// 	TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCx_Disable);
+
+// 	TIM_CCxCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCx_Disable);
+// 	TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCx_Disable);
+
+// 	TIM_CCxCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCx_Disable);
+// 	TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCx_Disable);	
+
+// 	Flag_Charger=1;  //充电标志位
+
+// }
+void  All_Discharg(void)	
+{
+	TIM_CCxCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCx_Disable);
+	TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCx_Disable);
+
+	TIM_CCxCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCx_Disable);
+	TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCx_Disable);
+
+	TIM_CCxCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCx_Disable);
+	TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCx_Disable);	
+}
+void  UV_W_phase_inject(void)	//110
+{ 
+	/*  Channel1 configuration */
+	TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCxN_Disable);
+	TIM_SetCompare1(BLDC_TIMx,Lock_Duty);
+	TIM_CCxCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCx_Enable);
+
+	/*  Channel2 configuration */ 
+	TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCxN_Disable);
+	TIM_SetCompare2(BLDC_TIMx,Lock_Duty);
+	TIM_CCxCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCx_Enable);
+
+	/*  Channel3 configuration */
+	TIM_CCxCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCx_Disable);
+	TIM_SetCompare3(BLDC_TIMx,PWM_ARR);
+	TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCxN_Enable);
+
+	Flag_adc=1;  
+	pos_idx=0;
+}
+void  W_UV_phase_inject(void)	//001
+{
+	
+	/*  Channel1 configuration */
+	TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCxN_Disable);
+	TIM_SetCompare3(BLDC_TIMx,Lock_Duty);
+	TIM_CCxCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCx_Enable);
+
+	/*  Channel2 configuration */ 
+	TIM_CCxCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCx_Disable);
+	TIM_SetCompare1(BLDC_TIMx,PWM_ARR);
+	TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCxN_Enable);
+
+	/*  Channel3 configuration */
+	TIM_CCxCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCx_Disable);
+	TIM_SetCompare2(BLDC_TIMx,PWM_ARR);
+	TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCxN_Enable);
+
+	Flag_adc=1;  
+	pos_idx=1;	
+}
+void  WU_V_phase_inject(void)	//101
+{
+	/*  Channel1 configuration */
+	TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCxN_Disable);
+	TIM_SetCompare1(BLDC_TIMx,Lock_Duty);
+	TIM_CCxCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCx_Enable);
+
+	/*  Channel2 configuration */ 
+	TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCxN_Disable);
+	TIM_SetCompare3(BLDC_TIMx,Lock_Duty);
+	TIM_CCxCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCx_Enable);
+
+	/*  Channel3 configuration */
+	TIM_CCxCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCx_Disable);
+	TIM_SetCompare2(BLDC_TIMx,PWM_ARR);
+	TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCxN_Enable);
+
+	Flag_adc=1;  
+	pos_idx=2;
+}
+void  V_WU_phase_inject(void)	//010
+{  
+	/*  Channel1 configuration */
+	TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCxN_Disable);
+	TIM_SetCompare2(BLDC_TIMx,Lock_Duty);
+	TIM_CCxCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCx_Enable);
+
+	/*  Channel2 configuration */ 
+	TIM_CCxCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCx_Disable);
+	TIM_SetCompare1(BLDC_TIMx,PWM_ARR);
+	TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCxN_Enable);
+
+	/*  Channel3 configuration */
+	TIM_CCxCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCx_Disable);
+	TIM_SetCompare3(BLDC_TIMx,PWM_ARR);
+	TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCxN_Enable);
+
+	Flag_adc=1;  
+	pos_idx=3;
+}
+void  VW_U_phase_inject(void)	//011
+{
+	/*  Channel1 configuration */
+	TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCxN_Disable);
+	TIM_SetCompare2(BLDC_TIMx,Lock_Duty);
+	TIM_CCxCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCx_Enable);
+
+	/*  Channel2 configuration */ 
+	TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCxN_Disable);
+	TIM_SetCompare3(BLDC_TIMx,Lock_Duty);
+	TIM_CCxCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCx_Enable);
+
+	/*  Channel3 configuration */
+	TIM_CCxCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCx_Disable);
+	TIM_SetCompare1(BLDC_TIMx,PWM_ARR);
+	TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCxN_Enable);
+
+	 Flag_adc=1;  
+	 pos_idx=4;
+}
+void  U_VW_phase_inject(void)	//100
+{
+	 
+	/*  Channel1 configuration */
+	TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCxN_Disable);
+	TIM_SetCompare1(BLDC_TIMx,Lock_Duty);
+	TIM_CCxCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCx_Enable);
+
+	/*  Channel2 configuration */ 
+	TIM_CCxCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCx_Disable);
+	TIM_SetCompare2(BLDC_TIMx,PWM_ARR);
+	TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCxN_Enable);
+
+	/*  Channel3 configuration */
+	TIM_CCxCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCx_Disable);
+	TIM_SetCompare3(BLDC_TIMx,PWM_ARR);
+	TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCxN_Enable);
+
+	Flag_adc=1;  
+	pos_idx=5;
+}
+//------------------------------------------------------------------------------------------------------
+#endif
+
 /*****************************************************************************
  函 数 名  : Align_pos_check_proc
  功能描述  : 位置检测过程
  输入参数  : 无
  输出参数  : void
 *****************************************************************************/
+// void Align_pos_check_proc(void)
+// {
+// 	if((Flag_adc==0)&&(Flag_Charger==0))  //电流采集并且充电完成
+// 	{
+// 		switch(pos_check_stage)//
+// 		{
+// #if 1
+// 			case 0: //先充电	
+// 				Charger();
+// 				pos_check_stage = 10;
+// 				break;
+// 			case 10://第一个脉冲注入
+// 				UV_W_phase_inject();
+// 				// U_VW_phase_inject();
+// 				pos_check_stage = 1;
+// 				break;
+			
+// 			case 1: //充电
+// 				Charger();
+// 				pos_check_stage = 20;
+// 				break;
+// 			case  20://第二个脉冲注入
+// 				W_UV_phase_inject();
+// 				// UV_W_phase_inject();
+// 				pos_check_stage = 3;
+// 				break; 
+			
+// 			case 3: //充电	
+// 				Charger();
+// 				pos_check_stage =30;
+// 				break;
+// 			case 30://第三个脉冲注入
+// 				WU_V_phase_inject();
+// 				// V_WU_phase_inject();
+// 				pos_check_stage =4;
+// 				break; 
+// 			case 4://充电
+// 				Charger();
+// 				pos_check_stage =40;
+// 				break;
+// 			case 40://第四个脉冲注入
+// 				V_WU_phase_inject();
+// 				// VW_U_phase_inject();
+// 				pos_check_stage =5;
+// 				break;
+// 			case 5://充电
+// 				Charger();
+// 				pos_check_stage =50;
+// 				break;
+// 			case 50://第五个脉冲注入
+// 				VW_U_phase_inject();
+// 				// W_UV_phase_inject();		   
+// 				pos_check_stage =6;
+// 				break;
+// 			case 6://充电
+// 				Charger();	
+// 				pos_check_stage =60;
+// 				test_idx = 0;
+// 				break;
+// 			case 60://第六个脉冲注入
+// 				U_VW_phase_inject();
+// 				// WU_V_phase_inject();
+// 				pos_check_stage =7;
+// 				break;
+// 			case 7://
+// 				PhaseCnt=0;
+// 			//电流比较获取位置
+// 				if(ADC_check_buf[0]<=ADC_check_buf[1])PhaseCnt|= 0x04;  
+// 				if(ADC_check_buf[2]<=ADC_check_buf[3])PhaseCnt|= 0x02;
+// 				if(ADC_check_buf[4]<=ADC_check_buf[5])PhaseCnt|= 0x01;	
+// 				Initial_stage= PhaseCnt; //测试用的  看位置变量
+// 				Flag_OverCurr=1;         //打完脉冲之后  使能硬件过流保护
+// #if 1
+// 				All_Discharg();
+// #endif
+// #endif
+// 				//Motor.PhaseCnt=PhaseCnt;
+// 				Motor.Duty =ALIGNMENTDUTY ;
+// 				 switch(PhaseCnt)		//此时预定位完成
+// 				{
+// 					case  5:  
+// 					{
+// 						Motor.PhaseCnt=1;
+// 						Startup_Turn(); //强制换向
+// 						Delay_ms(ALIGNMENTNMS);//对齐时间
+// 						EnterDragInit();
+// 					}
+// 					break;
+					
+// 					case  1:   
+// 					{
+// 						Motor.PhaseCnt=2;
+// 						Startup_Turn(); //强制换向
+// 						Delay_ms(ALIGNMENTNMS);//对齐时间
+// 						EnterDragInit();
+
+// 					}
+// 					break;
+
+// 					case  3:
+// 					{
+// 						Motor.PhaseCnt=3;
+// 						Startup_Turn(); //强制换向
+// 						Delay_ms(ALIGNMENTNMS);//对齐时间
+// 						EnterDragInit();
+
+// 					}
+// 					break;
+				
+// 					case  2:     
+// 					{
+// 						Motor.PhaseCnt=4;
+// 						Startup_Turn(); //强制换向
+// 						Delay_ms(ALIGNMENTNMS);//对齐时间
+// 						EnterDragInit();
+
+// 					}
+// 					break;
+					
+// 					case  6:    
+// 					{
+// 						Motor.PhaseCnt=5;
+// 						Startup_Turn(); //强制换向
+// 						Delay_ms(ALIGNMENTNMS);//对齐时间
+// 						EnterDragInit();
+
+// 					}
+// 					break;
+					
+// 					case  4:    
+// 					{
+// 						Motor.PhaseCnt=6;
+// 						Startup_Turn(); //强制换向
+// 						Delay_ms(ALIGNMENTNMS);//对齐时间
+// 						EnterDragInit();
+// 					}
+// 					break;	
+
+// 					default:
+// 					{
+// 						Startup_Turn(); //强制换向
+// 						Delay_ms(ALIGNMENTNMS);//对齐时间
+// 						MotorStop();
+
+// 					}
+// 					break;
+// 				}
+// 				pos_check_stage=70;
+// 				break;
+// 			default:
+// 				break;
+// 		}
+// 	}	
+// }
 void Align_pos_check_proc(void)
 {
-	if((Flag_adc==0)&&(Flag_Charger==0))  //电流采集并且充电完成
-	{
-		switch(pos_check_stage)//
-		{
-			case 0: //先充电	
-				Charger();
-				pos_check_stage = 10;
-				break;
-			case 10://第一个脉冲注入
-				UV_W_phase_inject();
-				pos_check_stage = 1;
-				break;
-			
-			case 1: //充电
-				Charger();
-				pos_check_stage = 20;
-				break;
-			case  20://第二个脉冲注入
-				W_UV_phase_inject();
-				pos_check_stage = 3;
-				break; 
-			
-			case 3: //充电	
-				Charger();
-				pos_check_stage =30;
-				break;
-			case 30://第三个脉冲注入
-				WU_V_phase_inject();
-				pos_check_stage =4;
-				break; 
-			case 4://充电
-				Charger();
-				pos_check_stage =40;
-				break;
-			case 40://第四个脉冲注入
-				V_WU_phase_inject();
-				pos_check_stage =5;
-				break;
-			case 5://充电
-				Charger();
-				pos_check_stage =50;
-				break;
-			case 50://第五个脉冲注入
-				VW_U_phase_inject();		   
-				pos_check_stage =6;
-				break;
-			case 6://充电
-				Charger();
-				pos_check_stage =60;
-				break;
-			case 60://第六个脉冲注入
-				U_VW_phase_inject();
-				pos_check_stage =7;
-				break;
-			case 7://
-				PhaseCnt=0;
-			//电流比较获取位置
-				if(ADC_check_buf[0]<=ADC_check_buf[1])PhaseCnt|= 0x04;  
-				if(ADC_check_buf[2]<=ADC_check_buf[3])PhaseCnt|= 0x02;
-				if(ADC_check_buf[4]<=ADC_check_buf[5])PhaseCnt|= 0x01;	
-				Initial_stage= PhaseCnt; //测试用的  看位置变量
-				Flag_OverCurr=1;         //打完脉冲之后  使能硬件过流保护
-#if 1
-				All_Discharg();
-#endif
-				//Motor.PhaseCnt=PhaseCnt;
-				Motor.Duty =ALIGNMENTDUTY ;
-				switch(PhaseCnt)		//此时预定位完成
-				{
-					case  5:  
-					{
-						Motor.PhaseCnt=1;
-						Startup_Turn(); //强制换向
-						Delay_ms(ALIGNMENTNMS);//对齐时间
-						EnterDragInit();
-					}
-					break;
-					
-					case  1:   
-					{
-						Motor.PhaseCnt=2;
-						Startup_Turn(); //强制换向
-						Delay_ms(ALIGNMENTNMS);//对齐时间
-						EnterDragInit();
-
-					}
-					break;
-
-					case  3:
-					{
-						Motor.PhaseCnt=3;
-						Startup_Turn(); //强制换向
-						Delay_ms(ALIGNMENTNMS);//对齐时间
-						EnterDragInit();
-
-					}
-					break;
-				
-					case  2:     
-					{
-						Motor.PhaseCnt=4;
-						Startup_Turn(); //强制换向
-						Delay_ms(ALIGNMENTNMS);//对齐时间
-						EnterDragInit();
-
-					}
-					break;
-					
-					case  6:    
-					{
-						Motor.PhaseCnt=5;
-						Startup_Turn(); //强制换向
-						Delay_ms(ALIGNMENTNMS);//对齐时间
-						EnterDragInit();
-
-					}
-					break;
-					
-					case  4:    
-					{
-						Motor.PhaseCnt=6;
-						Startup_Turn(); //强制换向
-						Delay_ms(ALIGNMENTNMS);//对齐时间
-						EnterDragInit();
-					}
-					break;	
-
-					default:
-					{
-						Startup_Turn(); //强制换向
-						Delay_ms(ALIGNMENTNMS);//对齐时间
-						MotorStop();
-
-					}
-					break;
-				}
-				pos_check_stage=70;
-				break;
-			default:
-				break;
-		}
-	}	
+	Motor.Duty = BeforDragDuty;
+	Motor.PhaseCnt=1;
+	Startup_Turn(); //强制换向
+	Delay_ms(BeforDragTimes);//对齐时间
+	Motor.PhaseCnt=3;
+	Startup_Turn(); //强制换向
+	Delay_ms(BeforDragTimes);//对齐时间
+	//All_Discharg();
+	EnterDragInit();
 }
 #endif

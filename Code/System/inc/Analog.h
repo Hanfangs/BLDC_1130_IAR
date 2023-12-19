@@ -21,14 +21,16 @@
 #define  Current_Collect_Pin    GPIO_Pin_1  
 
 
-#define  BatVol_Channel    ADC_Channel_4
-#define  Current_Channel     ADC_Channel_9
+
 //#define  Inst_Curr_Channel   ADC_Channel_2
-#define  PCB_Temp_Channel  ADC_Channel_16
+
 
 #define  U_Vol_Channel     ADC_Channel_0
 #define  V_Vol_Channel     ADC_Channel_1
+#define  BatVol_Channel    ADC_Channel_4
 #define  W_Vol_Channel     ADC_Channel_5
+#define  Current_Channel   ADC_Channel_9
+#define  PCB_Temp_Channel  ADC_Channel_16
 
 #define ADC_CHSELR_CONFIG_U  0x0000004F   			
 #define ADC_CHSELR_CONFIG_V  0x0000002F			
@@ -110,6 +112,8 @@ GLOBAL_ADC_ void Instant_Current_Cale(void);
 GLOBAL_ADC_ void Fault_Detection(void);
 GLOBAL_ADC_ void Fault_Soft_Overcurrent(void);
 GLOBAL_ADC_ void Angle_Dealwith(void);
+
+#define	Ku	1.01934			//由于分压电路不一样，该系数为了使分压系数一致
 
 #endif
 

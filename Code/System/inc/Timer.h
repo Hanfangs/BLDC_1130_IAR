@@ -26,18 +26,13 @@
 #define BLDC_TIM_CLK                    RCC_APB2Periph_TIM1
 
 #define BLDC_TIM_GPIO_CLK               (RCC_APB2Periph_GPIOA | RCC_APB2Periph_GPIOB)
-#define BLDC_TIM_CH1_PORT               GPIOA
+
 #define BLDC_TIM_CH1_PIN                GPIO_Pin_8
-#define BLDC_TIM_CH2_PORT               GPIOA
 #define BLDC_TIM_CH2_PIN                GPIO_Pin_9
-#define BLDC_TIM_CH3_PORT               GPIOA
 #define BLDC_TIM_CH3_PIN                GPIO_Pin_10
 
-#define BLDC_TIM_CH1N_PORT              GPIOB
 #define BLDC_TIM_CH1N_PIN               GPIO_Pin_13
-#define BLDC_TIM_CH2N_PORT              GPIOB
 #define BLDC_TIM_CH2N_PIN               GPIO_Pin_14
-#define BLDC_TIM_CH3N_PORT              GPIOB
 #define BLDC_TIM_CH3N_PIN               GPIO_Pin_15
 
 #define BLDC_TIM_BKIN_PORT              GPIOB
