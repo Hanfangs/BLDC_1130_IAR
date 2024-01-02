@@ -31,21 +31,21 @@
 #define ALIGNMENTNMS      (0)                 // 定位时间 
 #define ALIGNMENTDUTY     (360)               // 定位力矩   0.01-0.1   100->360
 #define BeforDragDuty         (360)
-#define BeforDragTimes         (50)
+#define BeforDragTimes         (35)
  
-#define RAMP_TIM_STA      (190)              //  爬坡开始步进时间 // 原本200  数值越小启动较快  ，容易过流
-#define RAMP_TIM_END      (20)               //  爬坡结束步进时间 30 根据负载调  如果带载  这个值适当大点
-#define RAMP_TIM_STEP     (9)                //  爬坡步进时间递减增量 --跟随RAMP_TIM_STA调整
+#define RAMP_TIM_STA      (35)              //  爬坡开始步进时间 // 原本200  数值越小启动较快  ，容易过流  <100,100时会反转 50有点卡顿
+#define RAMP_TIM_END      (8)               //  爬坡结束步进时间 30 根据负载调  如果带载  这个值适当大点
+#define RAMP_TIM_STEP     (32)                //  爬坡步进时间递减增量 --跟随RAMP_TIM_STA调整 9
+#define RAMP_DUTY_INC     (5)                //  爬坡步进力矩增量--数值太小启动不起来 太大容易过流    13->26
 #define RAMP_DUTY_STA     (360)              //  爬坡开始力矩      12%    100->360
-#define RAMP_DUTY_END     (PWM_DUTYCYCLE_20)  //  爬坡结束力矩       
-#define RAMP_DUTY_INC     (26)                //  爬坡步进力矩增量--数值太小启动不起来 太大容易过流    13->26
+#define RAMP_DUTY_END     (PWM_DUTYCYCLE_30)  //  爬坡结束力矩       
 #define START_TIMES       (2)       //启动次数(暂时不用)
 #define Run_Times         (100)     //强拖到闭环稳定时间  n*62.5us  (暂时不用)
 #define Maul_AutoTime     (30)      //进来先给初值  强拖切自动运行  参数重要(暂时不用)
  
  
  //电感法
-#define Lock_Duty        2600       //脉冲duty
+#define Lock_Duty        1200       //脉冲duty
 #define LongPulse_Time   10        //充电时间      10->100
 #define ShortPulse_Time  5          //脉冲时间      应该怎么算？ 目前是4次中断时间
 
@@ -101,7 +101,7 @@
 
 #define   OPEN_LOOP_Halless     (1)             // 1:开环运行
 #define   CLOSED_SPEEDLOOP_Halless   (2)        // 2：速度闭环
-#define   Control_Mode  (OPEN_LOOP_Halless)    //模式选择
+#define   Control_Mode  (CLOSED_SPEEDLOOP_Halless)    //模式选择    //原来是OPEN_LOOP_Halless
 
 // #define  Motor_MinSpeed    (6000)
 // #define  Motor_MaxSpeed    (22000)
@@ -131,7 +131,7 @@
 // #define BASE_VOLTAGE  (36)        //单位V 电机额定电压       Y
 // #define BASE_SPEED    (20000)     //单位rpm 电机额定转速*1.5 Y
 //转速计算因子
-#define  SPEEDFACTOR	(5000000)//(60 * SYS_CLK / (6 * POLE_PAIR * TIM3_Prescaler) )=1000 0000/POLE_PAIR// 计算转速的系数  266666 400000
+#define  SPEEDFACTOR	(2500000)//(60 * SYS_CLK / (6 * POLE_PAIR * TIM2_Prescaler) )=1000 0000/POLE_PAIR// 计算转速的系数  5000000->2500000
        
 
 #endif

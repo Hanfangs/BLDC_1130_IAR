@@ -32,12 +32,13 @@ int main(void)
 	ADC_Configuration();        //ADC初始化
 	TIM1_Config();              //定时器 PWM初始化
 	TIM2_Config();              //定时器初始化  
+	TIM3_Config();
 	TIM4_Config();
 	mcState=mcStop;
 
 	while(1)
 	{
-		//Led_RunTask_Op(LED_FLASH);
+		
 		if((mcState==mcStop)&&(sysflags.Motor_Stop==1))
 		{
 		 	//非正常停机
@@ -58,7 +59,7 @@ int main(void)
 				{
 					if(GPIO_ReadInputDataBit(GPIOB,GPIO_Pin_3) == 0)
 					{
-						//Led_RunTask_Op(LED_FLASH);
+						
 						GPIO_SetBits(LED_PORT, LED_PIN);
 						MasterState=Startup;
 						mcFault=RunNormal;

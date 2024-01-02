@@ -47,19 +47,34 @@ void TimingDelay_Decrement(void)
 
 void Delay_ms( uint16_t time_ms )  
 {
-  uint16_t i,j;
-  for( i=0;i<time_ms;i++ )
+
+  u32 temp;
+  SysTick->LOAD = 9000*time_ms;
+  SysTick->VAL=0X00;//清空计数器
+  SysTick->CTRL=0X01;//使能，减到零是无动作，采用外部时钟源
+
+  do
   {
-		for( j=0;j<2065;j++ );
-  }
+    temp=SysTick->CTRL;//读取当前倒计数值
+  }while((temp&0x01)&&(!(temp&(1<<16))));//等待时间到达
+
+  SysTick->CTRL=0x00; //关闭计数器
+  SysTick->VAL =0X00; //清空计数器
 }
 void Delay_us( uint16_t time_us )  
 {
-  uint16_t i,j;
-  for( i=0;i<time_us;i++ )
-  {
-		for( j=0;j<20;j++ );
-  }
+
+ u32 temp;
+ SysTick->LOAD = 9*time_us;
+ SysTick->VAL=0X00;//清空计数器
+ SysTick->CTRL=0X01;//使能，减到零是无动作，采用外部时钟源
+ do
+ {
+  temp=SysTick->CTRL;//读取当前倒计数值
+ }while((temp&0x01)&&(!(temp&(1<<16))));//等待时间到达
+     SysTick->CTRL=0x00; //关闭计数器
+    SysTick->VAL =0X00; //清空计数器
+
 }
 
 #endif

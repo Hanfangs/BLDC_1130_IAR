@@ -46,7 +46,7 @@ void SYSTICK_Init(void);
 GLOBAL_SYS_  void Delay_ms( uint16_t time_ms );
 GLOBAL_SYS_  void Delay(__IO uint32_t nTime);
 GLOBAL_SYS_  void Delay_us( uint16_t time_us );  
-void Led_RunTask_Op(u8 Led_Status);
+
 
 #define LED_LIGHTUP     0  //¡¡µ∆
 #define LED_FLASH       1  //…¡µ∆

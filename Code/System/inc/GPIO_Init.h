@@ -38,7 +38,6 @@
 #define LED_FLASH       1  //ÉÁµÆ
 #define LED_LIGHTDOWM   2  //ÃðµÆ
 
-void Led_RunTask_Op(u8 Led_Status);
 void BLDC_GPIO_Config(void);
 void Exti_Config(void);
 #endif

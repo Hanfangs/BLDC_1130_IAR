@@ -18,8 +18,8 @@
 #define  SPEEDLOOPCNT       3   //速度占空比调整周期
 
 #define    _IQmpy(A,B)         ((A) * (B))
-#define    FirstOrder_LPF_Cacl(Xn, Yn_1, a)\
-																					Yn_1 = (1-a)*Yn_1 + a*Xn; //Xn:in;Yn:out;a:系数
+#define    FirstOrder_LPF_Cacl(Xn, Yn_1, a)	\
+																	Yn_1 = (1-a)*Yn_1 + a*Xn; //Xn:in;Yn:out;a:系数 //软件滤波, a=t/RC
 #define    UP16LIMIT(var,max,min) {(var) = (var)>(max)?(max):(var) ;\
 																					(var) = (var)<(min)?(min):(var) ;\
 																					}
@@ -37,20 +37,19 @@
   电机PID控制结构体
 *********************************************************************************************************/
 typedef struct  {
-
-    float        	Kp;
-    float         Ki;
-    float         Kd;
-    uint16_t      MaxValue;
-    uint16_t      MinValue;
-    float         fpAllErr;
-	  float         Error;
-    float         Out;
-    uint8_t       Purpose;
-    float        Ref_Value;
-	  float          Ui;
-	  uint16_t      Max;
-	  uint16_t      Min;
+	float			Kp;
+	float			Ki;
+	float			Kd;
+	uint16_t		MaxValue;		//最大
+	uint16_t		MinValue;
+	float			fpAllErr;		
+	float			Error;			//误差
+	float			Out;			//PID结果
+	uint8_t			Purpose;
+	float			Ref_Value;		//0
+	float			Ui;				//积分值
+	uint16_t		Max;
+	uint16_t		Min;
 }PIDCONTROL;
 
 extern   PIDCONTROL     PID_Speed ;

@@ -51,7 +51,7 @@
 #define  PWM_DUTYCYCLE_100   3000
 
 #define  PWM_MIN_DUTY			PWM_DUTYCYCLE_20	// 最小占空比
-#define  PWM_MAX_DUTY			PWM_DUTYCYCLE_100	// 最大占空比
+#define  PWM_MAX_DUTY			PWM_DUTYCYCLE_50	// 最大占空比
 
 // #define    MINIMUMSPEED        5000    //最小转速
 // #define    MAXIMUMSPEED				22000	 // 电机最大转   DELTADUTYCYCLE		  30
@@ -68,9 +68,13 @@
 
 #define  Motor_DelayTime   6000
 
-#define MOTOR_BRAKE_ENABLE 0//1为启用刹车功能
-
-
+#define MOTOR_BRAKE_ENABLE 	0//1为启用刹车功能
+#define PULSE_INJECTION 	0
+#define	P1	0.0005349
+#define	P2	-0.1232
+#define	P3	13.48
+#define	P4	7.269
+#define    ACC_FUN(X, P1, P2, P3, P4)	((P1)*(X)*(X)*(X) + (P2)*(X)*(X) + (P3)*(X) + (P4))
 
 typedef enum
 {	
@@ -139,6 +143,8 @@ typedef struct
     uint16_t  SpeedTimeTemp ;
     uint32_t  SpeedTimeSum;
     uint16_t  DelayTime30;
+	uint16_t  ChangeCount;
+	uint16_t  ChangeTime_Count;
 }variable;
 GLOBAL_BLDC_  variable Sysvariable;
 GLOBAL_BLDC_  uint8_t    pos_check_stage;
@@ -165,6 +171,7 @@ GLOBAL_BLDC_ void  UserSpeedControl(void);
 GLOBAL_BLDC_ void  Sys_Variable_Init(void);
 GLOBAL_BLDC_ void  Align_pos_check_proc(void);
 GLOBAL_BLDC_ void All_Discharg(void);
+GLOBAL_BLDC_ void Change_Voltage(void);
 
 #endif
 

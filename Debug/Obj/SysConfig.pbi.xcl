@@ -5,25 +5,33 @@
 -I
 C:\Users\Hanfang Su\Desktop\科研\Mortor\BLDC_1130_IAR\Code\System\src
 -I
-C:\Users\Hanfang Su\Desktop\科研\Mortor\BLDC_1130_IAR\Code\Start
+C:\Users\Hanfang Su\Desktop\科研\Mortor\BLDC_1130_IAR\Code\Start\Device
 -I
 C:\Users\Hanfang Su\Desktop\科研\Mortor\BLDC_1130_IAR\Code\StdPeriph_Driver\inc
 -I
 C:\Users\Hanfang Su\Desktop\科研\Mortor\BLDC_1130_IAR\Code\System\inc
 -I
 C:\Users\Hanfang Su\Desktop\科研\Mortor\BLDC_1130_IAR\Code\User\inc
+-I
+D:\IAR\arm\CMSIS\Core\Include
+-I
+D:\IAR\arm\CMSIS\DSP\Include
 -I
 D:\IAR\arm\inc
 -I
 D:\IAR\arm\inc\c
 -I
-C:\Users\Hanfang Su\Desktop\科研\Mortor\BLDC_1130_IAR\Code\Start
+C:\Users\Hanfang Su\Desktop\科研\Mortor\BLDC_1130_IAR\Code\Start\Device
 -I
 C:\Users\Hanfang Su\Desktop\科研\Mortor\BLDC_1130_IAR\Code\StdPeriph_Driver\inc
 -I
 C:\Users\Hanfang Su\Desktop\科研\Mortor\BLDC_1130_IAR\Code\System\inc
 -I
 C:\Users\Hanfang Su\Desktop\科研\Mortor\BLDC_1130_IAR\Code\User\inc
+-I
+D:\IAR\arm\CMSIS\Core\Include
+-I
+D:\IAR\arm\CMSIS\DSP\Include
 -D__CHAR_BITS__=8
 -D__CHAR_MAX__=0xff
 -D__CHAR_MIN__=0
@@ -298,6 +306,8 @@ C:\Users\Hanfang Su\Desktop\科研\Mortor\BLDC_1130_IAR\Code\User\inc
 -D__EDG_CPP11_IL_EXTENSIONS_SUPPORTED=1
 -D__EDG_FLOAT80_ENABLING_POSSIBLE=0
 -D__EDG_FLOAT128_ENABLING_POSSIBLE=0
+-DUSE_STDPERIPH_DRIVER=1
+-DSTM32F10X_MD=1
 -D_DLIB_CONFIG_FILE_HEADER_NAME="D:\\IAR\\arm\\inc\\c\\DLib_Config_Full.h"
 -D_DLIB_CONFIG_FILE_STRING="D:\\IAR\\arm\\inc\\c\\DLib_Config_Full.h"
 -D__VERSION__="IAR ANSI C/C++ Compiler V8.32.1.169/W32 for ARM"

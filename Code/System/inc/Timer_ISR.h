@@ -11,6 +11,7 @@ GLOBAL_Timer_ISR_  uint16_t ADCIntProtectCnt;//adc中断计时保护
 GLOBAL_Timer_ISR_  uint16_t TuneDutyRatioCnt ;// 调整转速占空比的周期计数
 GLOBAL_Timer_ISR_ void TIM1_BRK_UP_TRG_COM_IRQHandler(void);
 GLOBAL_Timer_ISR_ void  TIM2_IRQHandler(void);
+GLOBAL_Timer_ISR_ void  TIM3_IRQHandler(void);
 GLOBAL_Timer_ISR_ void  TIM4_IRQHandler(void);
 #endif
 

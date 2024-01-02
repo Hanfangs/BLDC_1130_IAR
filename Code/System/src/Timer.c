@@ -14,7 +14,7 @@ const  uint16_t StopTime_Buffer[20]={0,100,200,300,400,500,600,700,800,900,1000,
 };
 /*****************************************************************
   * @file     TIM2_Config
-  * @brief    定时器2初始化   定时100us
+  * @brief    定时器2初始化   定时60ms
   * @param    无
   * @retval   无
   ***************************************************************/
@@ -23,17 +23,12 @@ const  uint16_t StopTime_Buffer[20]={0,100,200,300,400,500,600,700,800,900,1000,
     TIM_TimeBaseInitTypeDef TIM_BaseInitStructure;
     RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM2, ENABLE);
 
-  /*****
-	计数器的时钟=Fclk/(Prescaler+1)
-	PWM周期T= ( PWM_Arr+1  )*(Prescaler+1)/Fclk (HSI配置  Fclk=48MHZ)--得到的是   s
-   ChannelxPulse = DutyCycle * (TIM1_Period - 1) / 100
-	***/
   /* Time Base configuration 初始化定时器*/
     TIM_DeInit(TIM2);  
-    TIM_BaseInitStructure.TIM_Period = 100 - 1;    //100 * 1us
+    TIM_BaseInitStructure.TIM_Period = 60000 - 1;    //100 * 1us
     TIM_BaseInitStructure.TIM_Prescaler = 71;      //1Mhz  1us
     TIM_BaseInitStructure.TIM_ClockDivision = 0;     
-    TIM_BaseInitStructure.TIM_CounterMode = TIM_CounterMode_Down; 
+    TIM_BaseInitStructure.TIM_CounterMode = TIM_CounterMode_Up; 
     TIM_TimeBaseInit(TIM2, &TIM_BaseInitStructure); 
       
     TIM_ClearFlag(TIM2, TIM_FLAG_Update);
@@ -42,6 +37,29 @@ const  uint16_t StopTime_Buffer[20]={0,100,200,300,400,500,600,700,800,900,1000,
     TIM_Cmd(TIM2, ENABLE);
  
  }
+/*****************************************************************
+* @file     TIM3_Config
+* @brief    定时器3初始化   定时100us
+* @param    无
+* @retval   无
+***************************************************************/
+void TIM3_Config(void)
+{
+  TIM_TimeBaseInitTypeDef TIM_BaseInitStructure;
+  RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM3, ENABLE);
+    
+  TIM_BaseInitStructure.TIM_Period = 100-1;           
+  TIM_BaseInitStructure.TIM_Prescaler = 71;//
+  TIM_BaseInitStructure.TIM_ClockDivision = 0;     
+  TIM_BaseInitStructure.TIM_CounterMode = TIM_CounterMode_Up; 
+  TIM_TimeBaseInit(TIM3, &TIM_BaseInitStructure); 
+
+  TIM_ClearFlag(TIM3, TIM_FLAG_Update);
+  TIM_ITConfig(TIM3, TIM_IT_Update, ENABLE);         ///中断允许
+
+  TIM_Cmd(TIM3, ENABLE);
+
+}
  /*****************************************************************
   * @file     TIM4_Config
   * @brief    定时器4初始化   定时1ms
@@ -63,13 +81,6 @@ const  uint16_t StopTime_Buffer[20]={0,100,200,300,400,500,600,700,800,900,1000,
     TIM_ITConfig(TIM4, TIM_IT_Update, ENABLE);         ///中断允许
     
     TIM_Cmd(TIM4, ENABLE);
-
-    // /* Enable the TIM4 Interrupt        定时器4用来干什么的?   1ms定时用的      */
-    // NVIC_InitStructure.NVIC_IRQChannel = TIM4_IRQn;
-    // NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0;
-    // NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;
-    // NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
-    // NVIC_Init(&NVIC_InitStructure);
 
  }
 /*****************************************************************
@@ -125,7 +136,7 @@ const  uint16_t StopTime_Buffer[20]={0,100,200,300,400,500,600,700,800,900,1000,
   TIM_OCInitStructure.TIM_OCPolarity = TIM_OCPolarity_High;     //设置初始极性  -高电平 
   TIM_OCInitStructure.TIM_OCNPolarity = TIM_OCPolarity_Low;  //互补输出极性--高电平   下桥臂  高电平有效
   TIM_OCInitStructure.TIM_OCIdleState = TIM_OCIdleState_Reset;
-  TIM_OCInitStructure.TIM_OCNIdleState = TIM_OCIdleState_Reset;
+  TIM_OCInitStructure.TIM_OCNIdleState = TIM_OCNIdleState_Set;
 	
   TIM_OC1Init(TIM1, &TIM_OCInitStructure);  //使能通道1  初始化输出比较参数
   TIM_OCInitStructure.TIM_Pulse = 0;
@@ -305,7 +316,7 @@ void MOS_Q15PWM(void)      //U相上管通和V相的下管通  其他关闭
 	TIM1->CCR2 = 0;         					  
 	TIM1->CCR3 = 0;
 	GPIO_ResetBits(GPIOB, GPIO_Pin_13 | GPIO_Pin_15); 
-	GPIO_SetBits(GPIOB, GPIO_Pin_14); 
+	GPIO_SetBits(GPIOB, GPIO_Pin_14);   //reset关闭，set导通
 }
 
 void MOS_Q16PWM(void)    //U相上管通和W相的下管通  其他关闭

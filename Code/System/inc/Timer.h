@@ -41,6 +41,7 @@
 
 void TIM1_Config(void);
 void TIM2_Config(void);
+void TIM3_Config(void);
 void TIM4_Config(void);  
 void TIM1_BRK_UP_TRG_COM_IRQHandler(void);
 GLOBAL_TIM_ void Stop_Motor(void);

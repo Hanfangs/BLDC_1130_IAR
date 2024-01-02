@@ -31,14 +31,21 @@ void NVIC_Configuration(void)//100us        //配置中断函数优先级
 
 	NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);           //设置中断优先级组
 		
-	/* Enable the TIM2 Interrupt    用来100us定时用的  */
+	/* Enable the TIM2 Interrupt    用来60ms定时用的  */
 	NVIC_InitStructure.NVIC_IRQChannel = TIM2_IRQn;                 //配置中断源
 	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0;       //配置抢占优先级
-	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 1;              //配置子优先级
+	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 3;              //配置子优先级
 	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;                 //使能中断通道
 	NVIC_Init(&NVIC_InitStructure);                                 //调用初始化函数
 
-	/* Enable the TIM4 Interrupt        定时器4用来干什么的?   1ms定时用的      */
+	/* Enable the TIM3 Interrupt        100us定时用的      */
+	NVIC_InitStructure.NVIC_IRQChannel = TIM3_IRQn;
+	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0;
+	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 1;
+	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+	NVIC_Init(&NVIC_InitStructure);
+
+	/* Enable the TIM4 Interrupt        1ms定时用的      */
 	NVIC_InitStructure.NVIC_IRQChannel = TIM4_IRQn;
 	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0;
 	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;
@@ -181,7 +188,6 @@ void ADC_Configuration(void)
 {
 	/*开启时钟*/
 	RCC_APB2PeriphClockCmd(RCC_APB2Periph_ADC1, ENABLE);	//开启ADC1的时钟
-	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);	//开启GPIOA的时钟
 	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);		//开启DMA1的时钟
 	
 	/*设置ADC时钟*/
@@ -191,21 +197,21 @@ void ADC_Configuration(void)
 	GPIO_InitTypeDef GPIO_InitStructure;
 	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AIN;
 	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0 | GPIO_Pin_1 | GPIO_Pin_4 | GPIO_Pin_5;
-	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+	//GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
 	GPIO_Init(GPIOA, &GPIO_InitStructure);					//将PA0、PA1、PA2和PA3引脚初始化为模拟输入
 	
 	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AIN;
 	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_1;
-	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+	//GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
 	GPIO_Init(GPIOB, &GPIO_InitStructure);					//将PA0、PA1、PA2和PA3引脚初始化为模拟输入
 	
 	/*规则组通道配置*/
-	ADC_RegularChannelConfig(ADC1, U_Vol_Channel, 1, ADC_SampleTime_55Cycles5); 
-	ADC_RegularChannelConfig(ADC1, V_Vol_Channel, 2, ADC_SampleTime_55Cycles5);     
-	ADC_RegularChannelConfig(ADC1, BatVol_Channel, 3, ADC_SampleTime_55Cycles5); 
-	ADC_RegularChannelConfig(ADC1, W_Vol_Channel, 4, ADC_SampleTime_55Cycles5);
-	ADC_RegularChannelConfig(ADC1, Current_Channel, 5, ADC_SampleTime_55Cycles5);
-	ADC_RegularChannelConfig(ADC1, PCB_Temp_Channel, 6, ADC_SampleTime_55Cycles5); 
+	ADC_RegularChannelConfig(ADC1, U_Vol_Channel, 1, ADC_SampleTime_41Cycles5); 
+	ADC_RegularChannelConfig(ADC1, V_Vol_Channel, 2, ADC_SampleTime_41Cycles5);     
+	ADC_RegularChannelConfig(ADC1, BatVol_Channel, 3, ADC_SampleTime_41Cycles5); 
+	ADC_RegularChannelConfig(ADC1, W_Vol_Channel, 4, ADC_SampleTime_41Cycles5);
+	ADC_RegularChannelConfig(ADC1, Current_Channel, 5, ADC_SampleTime_41Cycles5);
+	ADC_RegularChannelConfig(ADC1, PCB_Temp_Channel, 6, ADC_SampleTime_41Cycles5); 
 	
 	/*ADC初始化*/
 	ADC_InitTypeDef ADC_InitStructure;											//定义结构体变量
@@ -229,7 +235,7 @@ void ADC_Configuration(void)
 	DMA_InitStructure.DMA_BufferSize = 6;										//转运的数据大小（转运次数），与ADC通道数一致
 	DMA_InitStructure.DMA_Mode = DMA_Mode_Circular;								//模式，选择循环模式，与ADC的连续转换一致
 	DMA_InitStructure.DMA_M2M = DMA_M2M_Disable;								//存储器到存储器，选择失能，数据由ADC外设触发转运到存储器
-	DMA_InitStructure.DMA_Priority = DMA_Priority_Medium;						//优先级，选择中等
+	DMA_InitStructure.DMA_Priority = DMA_Priority_High;						//优先级，选择中等
 	DMA_Init(DMA1_Channel1, &DMA_InitStructure);								//将结构体变量交给DMA_Init，配置DMA1的通道1
 
 	DMA_ITConfig(DMA1_Channel1, DMA_IT_TC , ENABLE);
@@ -259,7 +265,7 @@ void ADC_Configuration(void)
 void StorageDataCyclic(BUFFER_TYPE *buffer, uint16_t data)
 {
     *(buffer->array + buffer->bufferIndex) = data;
-      buffer->bufferIndex++;
+      buffer->bufferIndex++;	//每次存一个值
     if (buffer->bufferIndex >= BUFFER_SIZE)
     {
         buffer->bufferIndex = 0;
@@ -313,6 +319,7 @@ uint16_t Filter_AverageCalc(uint16_t *buffer, uint16_t n)
 void BemfCheck(void)  
 { 
 	static uint16_t  V_Bus_Half=0; 
+	static uint16_t  Bemf_T=0; 
 	if(sysflags.Angle_Mask==0)//等待续流结束
 	{	
 		if(Motor.PhaseCnt == 3 || Motor.PhaseCnt == 6)		//采样U相
@@ -328,15 +335,16 @@ void BemfCheck(void)
 			Motor.Bemf=RegularConvData_Tab[3];
 		}
 		//Motor.Bemf=RegularConvData_Tab[4]; 		//端电压采样	//待修改 改为0 | 1 | 3，需要先判断导通相
-		V_Bus_Half=(uint16_t)(RegularConvData_Tab[2]*0.5*Ku);	//母线电压的一半
+		V_Bus_Half=(uint16_t)(RegularConvData_Tab[2]*0.5);	//母线电压的一半 *Ku待定
 	}
 	if((sysflags.ChangePhase==0)&&(sysflags.Angle_Mask==0))
 	{
-		switch(Motor.PhaseCnt)
+		switch(Motor.PhaseCnt)			//此时万一失步了，相位不就不准了
 		{
 			case 1:
-				if(Motor.Bemf<V_Bus_Half)   
+				if(Motor.Bemf<V_Bus_Half)   	//打印一下此时bemf
 				{
+					Bemf_T = Motor.Bemf;
 					Sysvariable.BlankingCnt++;
 					if(Sysvariable.BlankingCnt>=Filter_Count)	//滤波延迟补偿
 					{
@@ -468,34 +476,33 @@ void Fault_OverUnderVoltage(void)
  函 数 名  : Cal_AverCurrent
  功能描述  : 计算平均电流函数  !!!!!电流负数的处理
  输入参数  : 无
- 输出参数  : void
+ 输出参数  : void		//此处直接取电流AD采样值Global_Current
 ************************************************************************************/
 void Cal_AverCurrent(void)
 {
 	static  uint32_t  ADTotalCurrent=0;
 	static  int8_t Current_AverTimes=0;
-  uint16_t	  Aver_Current=0;
-   if(Filter_Mode==Filter_Average)
-	 {
-			StorageDataCyclic(&ADCSampPare.busCur, Global_Current);
-			Motor.Current = Filter_AverageCalc(ADCSampPare.busCur.array, BUFFER_SIZE)*27;//  修正系数  0.82  22.3*0.82
-	 }
-	 else if(Filter_Mode==Filter_Function)
-	 {
-		 ADTotalCurrent+=Global_Current;
-     Current_AverTimes++;
-	 	 if(Current_AverTimes>=Filter_Const1)//平均电流计算
-	   {
-			 Current_AverTimes=0;
-			 Aver_Current=27*ADTotalCurrent/Filter_Const1; //MA
-	  	 ADTotalCurrent=Global_Current;
-		   FirstOrder_LPF_Cacl(Aver_Current,Motor.Current,0.1);
-
-		 }
-	 }
+	uint16_t	  Aver_Current=0;
+	if(Filter_Mode==Filter_Average)
+	{
+		StorageDataCyclic(&ADCSampPare.busCur, Global_Current);
+		Motor.Current = Filter_AverageCalc(ADCSampPare.busCur.array, BUFFER_SIZE)*27;//  修正系数  0.82  22.3*0.82
+	}
+	else if(Filter_Mode==Filter_Function)
+	{
+		ADTotalCurrent+=Global_Current;
+		Current_AverTimes++;
+		if(Current_AverTimes>=Filter_Const1)//平均电流计算
+		{
+			Current_AverTimes=0;
+			Aver_Current=27*ADTotalCurrent/Filter_Const1; //MA
+			ADTotalCurrent=Global_Current;
+			FirstOrder_LPF_Cacl(Aver_Current,Motor.Current,0.1);
+		}
+	}	
 	else if(Filter_Mode==Coff_Multi)   
 	{
-		 Motor.Current=Global_Current;
+		Motor.Current=Global_Current;
 	}
 	 
 }
@@ -511,11 +518,11 @@ void Cal_AverCurrent(void)
 
 void  Instant_Current_Cale(void)
 {
- if(mcState==mcRun)
- {
-	  if(RegularConvData_Tab[4]>mcCurOffset.I_Off_Average)
+	if(mcState==mcRun)
+	{
+		if(RegularConvData_Tab[4]>mcCurOffset.I_Off_Average)
 		{
-	    Global_Current=(RegularConvData_Tab[4]-mcCurOffset.I_Off_Average);//*CURRENT_COFF; AD值
+			Global_Current=(RegularConvData_Tab[4]-mcCurOffset.I_Off_Average);//*CURRENT_COFF; AD值
 		}
 		else
 		{
@@ -524,6 +531,7 @@ void  Instant_Current_Cale(void)
 	  
 	}
 }
+//没用到
 void Fault_Soft_Overcurrent(void)
 {
 		static  uint16_t   Soft_Time;

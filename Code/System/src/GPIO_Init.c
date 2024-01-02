@@ -88,24 +88,5 @@ void EXTI15_10_IRQHandler(void)
 
 }
 
-void Led_RunTask_Op(u8 Led_Status)//ÔËÐÐ×´Ì¬µÆ
-{
-    u8 byBitVal;
-    if(Led_Status == LED_FLASH)//ÉÁË¸
-    {
-        byBitVal = GPIO_ReadOutputDataBit(LED_PORT,LED_PIN);
-
-        GPIO_WriteBit(LED_PORT,LED_PIN,(BitAction)(!byBitVal));
-    }
-    else if(Led_Status == LED_LIGHTUP)
-    {
-    	GPIO_SetBits(LED_PORT, LED_PIN);//LED1ÁÁ
-    }
-    else if(Led_Status == LED_LIGHTDOWM)
-    {
-        GPIO_ResetBits(LED_PORT, LED_PIN);//LED1Ãð
-    }
-    
-} 
 #endif
 
