@@ -135,18 +135,36 @@ void TIM3_Config(void)
   TIM_OCInitStructure.TIM_OutputNState = TIM_OutputState_Enable;//互补输出使能
   TIM_OCInitStructure.TIM_OCPolarity = TIM_OCPolarity_High;     //设置初始极性  -高电平 
   TIM_OCInitStructure.TIM_OCNPolarity = TIM_OCPolarity_Low;  //互补输出极性--高电平   下桥臂  高电平有效
+  // TIM_OCInitStructure.TIM_OCNPolarity = TIM_OCPolarity_High;
   TIM_OCInitStructure.TIM_OCIdleState = TIM_OCIdleState_Reset;
   TIM_OCInitStructure.TIM_OCNIdleState = TIM_OCNIdleState_Set;
+  // TIM_OCInitStructure.TIM_OCNIdleState = TIM_OCIdleState_Reset;
 	
   TIM_OC1Init(TIM1, &TIM_OCInitStructure);  //使能通道1  初始化输出比较参数
-  TIM_OCInitStructure.TIM_Pulse = 0;
+  TIM_OCInitStructure.TIM_Pulse = 0;        //这个值是占空比
   TIM_OC2Init(TIM1, &TIM_OCInitStructure);  //使能通道2
   TIM_OCInitStructure.TIM_Pulse = 0;  
   TIM_OC3Init(TIM1, &TIM_OCInitStructure);  //使能通道3
 
+    // 设定TIM1_CH4的工作状态 为比较输出模式,触发AD转换。通道4的输出GPIO设过了吗？ 或者这个不需要设的吧 因为AD触发的输入是 ADC_ExternalTrigInjecConv_T1_CC4
+  /* Channel 4 Configuration in OC */                               ///PA11确实是悬空的没用到这个TIM1_CH4   
+                
+  TIM_OCInitStructure.TIM_OCMode = TIM_OCMode_PWM1;  
+  TIM_OCInitStructure.TIM_OutputState = TIM_OutputState_Enable; 
+  TIM_OCInitStructure.TIM_OutputNState = TIM_OutputNState_Disable;                  
+  TIM_OCInitStructure.TIM_Pulse = 0;          ///这个在周期结束的时候  这个CC值设的和那个周期值还是一样的  有意思
+
+  TIM_OCInitStructure.TIM_OCPolarity = TIM_OCPolarity_High; 
+  TIM_OCInitStructure.TIM_OCNPolarity = TIM_OCNPolarity_Low;        ///估计这个N没用到吧  
+  TIM_OCInitStructure.TIM_OCIdleState = TIM_OCIdleState_Reset;
+  TIM_OCInitStructure.TIM_OCNIdleState = TIM_OCNIdleState_Set;   ///估计这个N没用到吧
+  TIM_OC4Init(BLDC_TIMx, &TIM_OCInitStructure);
+
   TIM_OC1PreloadConfig(TIM1, TIM_OCPreload_Enable);               
   TIM_OC2PreloadConfig(TIM1, TIM_OCPreload_Enable);
   TIM_OC3PreloadConfig(TIM1, TIM_OCPreload_Enable);
+  // 设定TIM1_CH4的工作状态 为比较输出模式,触发AD转换。
+  TIM_OC4PreloadConfig(BLDC_TIMx,TIM_OCPreload_Enable);
 
   TIM_BDTRInitStructure.TIM_OSSRState = TIM_OSSRState_Enable;
   TIM_BDTRInitStructure.TIM_OSSIState = TIM_OSSIState_Enable;
@@ -155,10 +173,10 @@ void TIM3_Config(void)
 
 #if(MOTOR_BRAKE_ENABLE == 0)//关闭刹车功能        这个程序是启用了这个刹车功能的                    
   TIM_BDTRInitStructure.TIM_Break = TIM_Break_Disable;                                              
-  TIM_BDTRInitStructure.TIM_BreakPolarity = TIM_BreakPolarity_Low;                                
+  TIM_BDTRInitStructure.TIM_BreakPolarity = TIM_BreakPolarity_High;                                
 #else//开启刹车功能                                                                                   
   TIM_BDTRInitStructure.TIM_Break = TIM_Break_Enable;                                                
-  TIM_BDTRInitStructure.TIM_BreakPolarity = TIM_BreakPolarity_Low;        //##   刹车极性为高
+  TIM_BDTRInitStructure.TIM_BreakPolarity = TIM_BreakPolarity_High;        //##   刹车极性为高
 #endif
   TIM_BDTRInitStructure.TIM_AutomaticOutput = TIM_AutomaticOutput_Enable;    
   TIM_BDTRConfig(TIM1, &TIM_BDTRInitStructure); 
@@ -167,7 +185,8 @@ void TIM3_Config(void)
 
   //刹车
   TIM_ClearITPendingBit(TIM1,TIM_IT_Break);
-  TIM_ITConfig(TIM1,TIM_IT_Break,DISABLE);              ///刹车中断也中关了 
+  TIM_ITConfig(BLDC_TIMx,TIM_IT_CC4,ENABLE);            //定时器中断打开，用于触发AD转换
+  TIM_ITConfig(TIM1,TIM_IT_Break,DISABLE);              ///刹车中断关了 
 	TIM_Cmd(TIM1, ENABLE);  //使能定时器
   TIM_CtrlPWMOutputs(TIM1, ENABLE); 
 
@@ -177,6 +196,8 @@ void TIM3_Config(void)
   TIM_CCxNCmd(TIM1,TIM_Channel_2,TIM_CCxN_Disable);
   TIM_CCxCmd(TIM1,TIM_Channel_3,TIM_CCx_Disable);
   TIM_CCxNCmd(TIM1,TIM_Channel_3,TIM_CCxN_Disable);
+  TIM_CCxCmd(TIM1,TIM_Channel_4,TIM_CCx_Disable);
+  TIM_CCxNCmd(TIM1,TIM_Channel_4,TIM_CCxN_Disable);
 }
 
 /*****************************************************************
@@ -195,6 +216,9 @@ void Start_Motor(void)
 
 	TIM_CCxCmd(TIM1, TIM_Channel_3, TIM_CCx_Enable);
 	TIM_CCxNCmd(TIM1, TIM_Channel_3, TIM_CCxN_Enable);
+
+  TIM_CCxCmd(TIM1, TIM_Channel_4, TIM_CCx_Enable);
+  //TIM_CCxNCmd(TIM1, TIM_Channel_4, TIM_CCxN_Enable);
 }
 /*****************************************************************
   * @file     MOS_Q15PWM
@@ -203,16 +227,19 @@ void Start_Motor(void)
   * @retval   无
   ******************************0*********************************/
 
-#if 0
+#if 1
 void MOS_Q15PWM(void)      
 {   
-	TIM1->CCR1 = Motor.Duty; //PA10输出pwm	 -U上	
-	TIM1->CCR2 = 0;
-	TIM1->CCR3 = 0;	  		  
-
-	GPIOB->BSRR = U_Mos_L_Pin;
-	GPIOB->BSRR = W_Mos_L_Pin;
-	GPIOB->BRR = V_Mos_L_Pin;
+    TIM_CCxCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCx_Disable);
+    TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCxN_Disable);    
+    /*  Channel1 configuration */
+    TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCxN_Disable);
+    TIM_SetCompare1(BLDC_TIMx,Motor.Duty);
+    TIM_CCxCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCx_Enable);
+    /*  Channel2 configuration */
+    TIM_CCxCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCx_Disable);        
+    TIM_SetCompare2(BLDC_TIMx,PWM_ARR);
+    TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCxN_Enable);
 
 	
 }
@@ -225,12 +252,18 @@ void MOS_Q15PWM(void)
 void  MOS_Q16PWM(void)
 {    
 
-  TIM1->CCR1= Motor.Duty;   //PA10输出pwm	 -U上		
-	TIM1->CCR2 = 0;
-	TIM1->CCR3 = 0; 				  	
+    TIM_CCxCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCx_Disable);
+    TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCxN_Disable);
 
-	GPIOB->BSRR =  U_Mos_L_Pin | V_Mos_L_Pin;
-	GPIOB->BRR = W_Mos_L_Pin;
+    /*  Channel1 configuration */
+    TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCxN_Disable);
+    TIM_SetCompare1(BLDC_TIMx,Motor.Duty);
+    TIM_CCxCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCx_Enable);
+    /*  Channel2 configuration */      
+    /*  Channel3 configuration */
+    TIM_CCxCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCx_Disable);
+    TIM_SetCompare3(BLDC_TIMx,PWM_ARR);
+    TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCxN_Enable);
 	
 }
  /*****************************************************************
@@ -242,12 +275,19 @@ void  MOS_Q16PWM(void)
 void MOS_Q26PWM(void)
 {    
 	
-	TIM1->CCR1 = 0; 
-	TIM1->CCR2 = Motor.Duty;	//PA9输出pwm -V上		
-	TIM1->CCR3 = 0;	  
- 
-	GPIOB->BSRR =  U_Mos_L_Pin | V_Mos_L_Pin;
-	GPIOB->BRR = W_Mos_L_Pin;
+    TIM_CCxCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCx_Disable);
+    TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCxN_Disable);        ////定时器1的通道1禁掉了
+
+    /*  Channel1 configuration */
+    /*  Channel2 configuration */  
+    TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCxN_Disable);           ///先把通道2关掉
+
+    TIM_SetCompare2(BLDC_TIMx,Motor.Duty);     ///再把这个比较器设置一下   但是这个值又是怎么回事呢   这里比较器设的值是 千分之speed_duty占空比
+    TIM_CCxCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCx_Enable);           ///  再把这个通道2 允许
+    /*  Channel3 configuration */
+    TIM_CCxCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCx_Disable);          
+    TIM_SetCompare3(BLDC_TIMx,PWM_ARR);                  ////但是这个通道3N 的比较值设的是就是周期  20K那个，50us
+    TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCxN_Enable);
 
 }
  /*****************************************************************
@@ -260,13 +300,18 @@ void MOS_Q24PWM(void)
 {    
 	
 	
-	TIM1->CCR1 = 0;  
-	TIM1->CCR2 = Motor.Duty;	 //PA9输出pwm -V上
-  TIM1->CCR3 = 0;					  
+    TIM_CCxCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCx_Disable);
+    TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCxN_Disable);
 
-	GPIOB->BSRR =   V_Mos_L_Pin;
-	GPIOB->BSRR =   W_Mos_L_Pin;
-	GPIOB->BRR = U_Mos_L_Pin;
+    /*  Channel1 configuration */
+    TIM_CCxCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCx_Disable);
+    TIM_SetCompare1(BLDC_TIMx,PWM_ARR);                 ///看下来，B+的地方，设的就是占空比*周期，而A-的地方，设的就是周期
+    TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCxN_Enable);
+
+    /*  Channel2 configuration */
+    TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCxN_Disable);
+    TIM_SetCompare2(BLDC_TIMx,Motor.Duty);
+    TIM_CCxCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCx_Enable);
 
 }
 
@@ -279,13 +324,19 @@ void MOS_Q24PWM(void)
 void MOS_Q34PWM(void)
 {
 
-	TIM1->CCR1 = 0;
-	TIM1->CCR2 = 0;
-	TIM1->CCR3 = Motor.Duty;		    //PA8输出pwm	-W上	  
+    TIM_CCxCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCx_Disable);
+    TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCxN_Disable);
 
-	GPIOB->BSRR =   V_Mos_L_Pin;
-	GPIOB->BSRR =   W_Mos_L_Pin;
-  GPIOB->BRR = U_Mos_L_Pin;
+    /*  Channel1 configuration */
+    TIM_CCxCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCx_Disable);
+    TIM_SetCompare1(BLDC_TIMx,PWM_ARR);
+    TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCxN_Enable);
+
+    /*  Channel2 configuration */ 
+    /*  Channel3 configuration */
+    TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCxN_Disable);
+    TIM_SetCompare3(BLDC_TIMx,Motor.Duty);
+    TIM_CCxCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCx_Enable);
 
 
 	
@@ -299,13 +350,19 @@ void MOS_Q34PWM(void)
 void MOS_Q35PWM(void)
 {  
 
-  TIM1->CCR1 = 0; 
-	TIM1->CCR2 = 0;
-	TIM1->CCR3 = Motor.Duty;		        //W			  
-  
-	GPIOB->BSRR =   U_Mos_L_Pin;
-	GPIOB->BSRR =   W_Mos_L_Pin;
-	GPIOB->BRR = V_Mos_L_Pin;
+    TIM_CCxCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCx_Disable);
+    TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCxN_Disable);    
+    /*  Channel1 configuration */      
+    /*  Channel2 configuration */  
+
+    TIM_CCxCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCx_Disable);
+    TIM_SetCompare2(BLDC_TIMx,PWM_ARR);
+    TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCxN_Enable);
+
+    /*  Channel3 configuration */          
+    TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCxN_Disable);
+    TIM_SetCompare3(BLDC_TIMx,Motor.Duty);
+    TIM_CCxCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCx_Enable);
 
 
 }
@@ -315,6 +372,7 @@ void MOS_Q15PWM(void)      //U相上管通和V相的下管通  其他关闭
   TIM1->CCR1 = Motor.Duty;  
 	TIM1->CCR2 = 0;         					  
 	TIM1->CCR3 = 0;
+  TIM1->CCR4 = Motor.Duty / 2;  
 	GPIO_ResetBits(GPIOB, GPIO_Pin_13 | GPIO_Pin_15); 
 	GPIO_SetBits(GPIOB, GPIO_Pin_14);   //reset关闭，set导通
 }
@@ -324,6 +382,7 @@ void MOS_Q16PWM(void)    //U相上管通和W相的下管通  其他关闭
   TIM1->CCR1 = Motor.Duty;    
 	TIM1->CCR2 = 0;            				  
 	TIM1->CCR3 = 0;
+  TIM1->CCR4 = Motor.Duty / 2; 
 	GPIO_ResetBits(GPIOB, GPIO_Pin_13 | GPIO_Pin_14); 
 	GPIO_SetBits(GPIOB, GPIO_Pin_15);
 }
@@ -333,6 +392,7 @@ void MOS_Q26PWM(void)     //V相上管通和W相的下管通  其他关闭
 	TIM1->CCR1= 0;       
 	TIM1->CCR2 = Motor.Duty;					  
 	TIM1->CCR3= 0;
+  TIM1->CCR4 = Motor.Duty / 2; 
 	GPIO_ResetBits(GPIOB, GPIO_Pin_13 | GPIO_Pin_14); 
 	GPIO_SetBits(GPIOB, GPIO_Pin_15); 
 }
@@ -342,6 +402,7 @@ void MOS_Q24PWM(void)     //V相上管通和U相的下管通  其他关闭
 	TIM1->CCR1 = 0;        
 	TIM1->CCR2 = Motor.Duty;					  
 	TIM1->CCR3 = 0;
+  TIM1->CCR4 = Motor.Duty / 2; 
 	GPIO_ResetBits(GPIOB, GPIO_Pin_14 | GPIO_Pin_15); 
 	GPIO_SetBits(GPIOB, GPIO_Pin_13);
 }
@@ -350,7 +411,8 @@ void MOS_Q34PWM(void)     //W相上管通和U相的下管通  其他关闭
 {
   TIM1->CCR1 = 0;
 	TIM1->CCR2 = 0;
-	TIM1->CCR3 = Motor.Duty;					  
+	TIM1->CCR3 = Motor.Duty;	
+  TIM1->CCR4 = Motor.Duty / 2; 				  
 	GPIO_ResetBits(GPIOB, GPIO_Pin_14 | GPIO_Pin_15); 
 	GPIO_SetBits(GPIOB, GPIO_Pin_13); 
 }
@@ -359,7 +421,8 @@ void MOS_Q35PWM(void)     //W相上管通和V相的下管通  其他关闭
 {  
   TIM1->CCR1 = 0;
 	TIM1->CCR2 = 0;
-	TIM1->CCR3 = Motor.Duty;	
+	TIM1->CCR3 = Motor.Duty;
+  TIM1->CCR4 = Motor.Duty / 2; 	
   GPIO_ResetBits(GPIOB, GPIO_Pin_13 | GPIO_Pin_15); 
   GPIO_SetBits(GPIOB, GPIO_Pin_14);   
 }

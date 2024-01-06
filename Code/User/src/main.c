@@ -20,7 +20,7 @@
   * @param  None
   * @retval None
   **************************************************/
-int main(void)
+  int main(void)
 {
  
 	Motor.ControlMode =Control_Mode ;//开环运行
@@ -48,7 +48,7 @@ int main(void)
 			{
 				if(ADJ_MODE==STEPLESS_SPEED)
 				{
-					UserSpeedSample =RegularConvData_Tab[4] ;   //获取电位器AD值0-4095	//Instance current
+					UserSpeedSample = ADC_GetInjectedConversionValue(ADC1, ADC_InjectedChannel_4) ;   //获取电位器AD值0-4095	//Instance current
 					if(UserSpeedSample<RHEOSTATMIN)							//200
 					{
 						MasterState=Startup;

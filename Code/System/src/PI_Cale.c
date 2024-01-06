@@ -12,7 +12,7 @@ PIDCONTROL   PID_Speed = {	0.01,                                                
 							0.005,                                                   /* i设置为3                     */
 							0,                                                     /* d设置为0                     */
 							1500,                                                  /* 最大输出值9A   */
-							300,                                                   /* 最小输出值       */
+							300,                                                   /* 最小输出值  300->600     */		
 							0,
 							0,                                                     /* 误差累计积分为0                  */
 							0,                                                   /* 初始化值               */
@@ -80,7 +80,7 @@ void CalcAvgSpeedTime(void)
 {	
 	if(	Motor.ControlMode ==CLOSED_SPEEDLOOP_Halless) //闭环运行
 	{
-		if(TuneDutyRatioCnt >= SPEEDLOOPCNT)	// 速度环	3个周期调整一次
+		if(TuneDutyRatioCnt >= SPEEDLOOPCNT)	// 速度环	10ms调整一次
 		{
 			TuneDutyRatioCnt = 0;
 			Motor.Last_Speed = SPEEDFACTOR / Sysvariable.SpeedTime;   //60°/60°时间

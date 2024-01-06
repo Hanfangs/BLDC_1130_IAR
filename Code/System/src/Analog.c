@@ -18,7 +18,7 @@ uint8_t        Filter_Count=0;  //
 
 float       Aver_Current=0;
 float       DC_TotalCurrent=0;
-volatile    uint16_t  RegularConvData_Tab[6]={0};
+volatile    uint16_t  RegularConvData_Tab[2]={0};
 uint8_t     Flag_Stall=0;
 uint8_t     DELTADUTYCYCLE=1;
 uint16_t    Global_Current=0;
@@ -76,108 +76,6 @@ void NVIC_Configuration(void)//100us        //配置中断函数优先级
 #endif     
 }
 
-/*  
-* 函数名：ADC1_GPIO_Config  
-* 描述  ：使能 ADC1 和 DMA1 的时钟，初始化   
-* 输入  : 无  
-* 输出  ：无  
-* 调用  ：内部调用  
-*/
-static void ADC1_GPIO_Config(void)
-{
-    GPIO_InitTypeDef GPIO_InitStructure;   
-       
-    /* Enable DMA clock */  
-    RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);   
-       
-    /* Enable ADC1 and GPIOA GPIOB clock */  
-    RCC_APB2PeriphClockCmd(RCC_APB2Periph_ADC1, ENABLE);
-	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
-	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);        
-       
-    /* Configure PA0  as analog input */     
-    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0 | GPIO_Pin_1 | GPIO_Pin_4 | GPIO_Pin_5;   
-    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AIN;   //引脚模式为模拟输入
-	//GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-    GPIO_Init(GPIOA, &GPIO_InitStructure);   // PA,输入时不用设置速率 
-    
-    /* Configure P13  as analog input */  //TEMP   
-    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_1;   
-    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AIN;
-	//GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-    GPIO_Init(GPIOB, &GPIO_InitStructure);   // PB,输入时不用设置速率 
-}
-
-/* 函数名：ADC1_Mode_Config  
-* 描述  ：配置 ADC1 的工作模式为 DMA 模式  
-* 输入  : 无  
-* 输出  ：无  
-* 调用  ：内部调用  
-*cpu温度值= （1.43V - ADC16值/4096*3.3）/Avg_Slope(4.3mV/摄氏度) + 25
-*/ 
-static void ADC1_Mode_Config(void)
-{
-	DMA_InitTypeDef DMA_InitStructure;   
-	ADC_InitTypeDef ADC_InitStructure;   
-		
-	/*选择时钟6分频，ADCCLK = 72MHz / 6 = 12MHz*/ 
-	RCC_ADCCLKConfig(RCC_PCLK2_Div6); 
-	/*配置 ADC1 的通道 0 为 55.5 个采样周期 */    //10us采样一次
-	ADC_RegularChannelConfig(ADC1, U_Vol_Channel, 1, ADC_SampleTime_55Cycles5); 
-	ADC_RegularChannelConfig(ADC1, V_Vol_Channel, 2, ADC_SampleTime_55Cycles5);     
-	ADC_RegularChannelConfig(ADC1, BatVol_Channel, 3, ADC_SampleTime_55Cycles5); 
-	ADC_RegularChannelConfig(ADC1, W_Vol_Channel, 4, ADC_SampleTime_55Cycles5);
-	ADC_RegularChannelConfig(ADC1, Current_Channel, 5, ADC_SampleTime_55Cycles5);
-	ADC_RegularChannelConfig(ADC1, PCB_Temp_Channel, 6, ADC_SampleTime_55Cycles5); 
-	//ADC_RegularChannelConfig(ADC1, PCB_Temp_Channel, 3, ADC_SampleTime_55Cycles5);  
-
-	/* ADC1 configuration */     
-	ADC_InitStructure.ADC_Mode = ADC_Mode_Independent;  /*独立 ADC 模式*/   //只用ADC1
-	ADC_InitStructure.ADC_ScanConvMode = ENABLE ;   /*扫描模式，扫描模式用于多通道采集*/   
-	ADC_InitStructure.ADC_ContinuousConvMode = ENABLE;  /*开启连续转换模式，即不停地进行 ADC 转换*/   
-	ADC_InitStructure.ADC_ExternalTrigConv = ADC_ExternalTrigConv_None; /*不使用外部触发转换*/   
-	ADC_InitStructure.ADC_DataAlign = ADC_DataAlign_Right;  /*采集数据右对齐*/   
-	ADC_InitStructure.ADC_NbrOfChannel = 6;     /*要转换的通道数目 6*/   
-	ADC_Init(ADC1, &ADC_InitStructure);   
-
-	/* DMA channel1 configuration */  
-	DMA_DeInit(DMA1_Channel1);   
-	DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t)ADC1_DR_Address;  //ADC数据存放源地址    
-	DMA_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_HalfWord; //外设数据宽度  半字
-	DMA_InitStructure.DMA_PeripheralInc = DMA_PeripheralInc_Disable;		//外设地址始终是ADC
-	DMA_InitStructure.DMA_MemoryBaseAddr = (uint32_t)RegularConvData_Tab;  //目标缓存地址    
-	DMA_InitStructure.DMA_MemoryDataSize = DMA_MemoryDataSize_HalfWord;//内存的数据宽度
-	DMA_InitStructure.DMA_MemoryInc = DMA_MemoryInc_Enable;  //设定寄存器内存地址增加  每次DMA将外设寄存器中的值传到内存	
-	DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralSRC;   //外设数据源
-	DMA_InitStructure.DMA_BufferSize = 6;     //转运次数，与ADC通道数一致，存放AD的数据大小,本程序一共采集6个数据
-	DMA_InitStructure.DMA_Mode = DMA_Mode_Circular;  //循环传输
-	DMA_InitStructure.DMA_M2M = DMA_M2M_Disable;
-	DMA_InitStructure.DMA_Priority = DMA_Priority_High;  //DMA通道优先级     
-	DMA_Init(DMA1_Channel1, &DMA_InitStructure);
-
-	DMA_ITConfig(DMA1_Channel1, DMA_IT_TC , ENABLE);
-		
-	/* 开启内部温度传感器和 Vrefint 通道 */
-	ADC_TempSensorVrefintCmd(ENABLE);
-
-	/* Enable ADC1 DMA */  
-	ADC_DMACmd(ADC1, ENABLE);   
-	DMA_Cmd(DMA1_Channel1, ENABLE);
-	/* Enable ADC1 */  
-	ADC_Cmd(ADC1, ENABLE);   
-		
-		/*复位校准寄存器 */      
-	ADC_ResetCalibration(ADC1);
-	/*等待校准寄存器复位完成 */  
-	while(ADC_GetResetCalibrationStatus(ADC1));   
-	/* ADC 校准 */  
-	ADC_StartCalibration(ADC1);   
-	/* 等待校准完成*/  
-	while(ADC_GetCalibrationStatus(ADC1));   
-		
-	/* 由于没有采用外部触发，所以使用软件触发 ADC 转换 */    
-	ADC_SoftwareStartConvCmd(ADC1, ENABLE);
-}
 /*****************************************************************
   * @file     ADC_Configuration
   * @brief    完成ADC 初始化
@@ -205,14 +103,6 @@ void ADC_Configuration(void)
 	//GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
 	GPIO_Init(GPIOB, &GPIO_InitStructure);					//将PA0、PA1、PA2和PA3引脚初始化为模拟输入
 	
-	/*规则组通道配置*/
-	ADC_RegularChannelConfig(ADC1, U_Vol_Channel, 1, ADC_SampleTime_41Cycles5); 
-	ADC_RegularChannelConfig(ADC1, V_Vol_Channel, 2, ADC_SampleTime_41Cycles5);     
-	ADC_RegularChannelConfig(ADC1, BatVol_Channel, 3, ADC_SampleTime_41Cycles5); 
-	ADC_RegularChannelConfig(ADC1, W_Vol_Channel, 4, ADC_SampleTime_41Cycles5);
-	ADC_RegularChannelConfig(ADC1, Current_Channel, 5, ADC_SampleTime_41Cycles5);
-	ADC_RegularChannelConfig(ADC1, PCB_Temp_Channel, 6, ADC_SampleTime_41Cycles5); 
-	
 	/*ADC初始化*/
 	ADC_InitTypeDef ADC_InitStructure;											//定义结构体变量
 	ADC_InitStructure.ADC_Mode = ADC_Mode_Independent;							//模式，选择独立模式，即单独使用ADC1
@@ -220,9 +110,26 @@ void ADC_Configuration(void)
 	ADC_InitStructure.ADC_ExternalTrigConv = ADC_ExternalTrigConv_None;			//外部触发，使用软件触发，不需要外部触发
 	ADC_InitStructure.ADC_ContinuousConvMode = ENABLE;							//连续转换，使能，每转换一次规则组序列后立刻开始下一次转换
 	ADC_InitStructure.ADC_ScanConvMode = ENABLE;								//扫描模式，使能，扫描规则组的序列，扫描数量由ADC_NbrOfChannel确定
-	ADC_InitStructure.ADC_NbrOfChannel = 6;										//通道数，为4，扫描规则组的前4个通道
+	ADC_InitStructure.ADC_NbrOfChannel = 2;										//通道数，为4，扫描规则组的前4个通道
 	ADC_Init(ADC1, &ADC_InitStructure);											//将结构体变量交给ADC_Init，配置ADC1
+
+		/*规则组通道配置*/
+	// ADC_RegularChannelConfig(ADC1, U_Vol_Channel, 1, ADC_SampleTime_41Cycles5); 
+	// ADC_RegularChannelConfig(ADC1, V_Vol_Channel, 2, ADC_SampleTime_41Cycles5);     
+	ADC_RegularChannelConfig(ADC1, BatVol_Channel, 1, ADC_SampleTime_41Cycles5); 
+	// ADC_RegularChannelConfig(ADC1, W_Vol_Channel, 4, ADC_SampleTime_41Cycles5);
+	// ADC_RegularChannelConfig(ADC1, Current_Channel, 5, ADC_SampleTime_41Cycles5);
+	ADC_RegularChannelConfig(ADC1, PCB_Temp_Channel, 2, ADC_SampleTime_41Cycles5); 
 	
+	ADC_InjectedSequencerLengthConfig(ADC1, 4);  
+	ADC_InjectedChannelConfig(ADC1, U_Vol_Channel, 1, ADC_SampleTime_7Cycles5);
+	ADC_InjectedChannelConfig(ADC1, V_Vol_Channel, 2, ADC_SampleTime_7Cycles5);
+	ADC_InjectedChannelConfig(ADC1, W_Vol_Channel, 3, ADC_SampleTime_7Cycles5);
+	ADC_InjectedChannelConfig(ADC1, Current_Channel, 4, ADC_SampleTime_7Cycles5);
+	ADC_ExternalTrigInjectedConvConfig(ADC1, ADC_ExternalTrigInjecConv_T1_CC4); 
+	ADC_ExternalTrigInjectedConvCmd(ADC1, ENABLE);
+	//ADC_ITConfig(ADC1,ADC_IT_JEOC,ENABLE);
+
 	/*DMA初始化*/
 	DMA_InitTypeDef DMA_InitStructure;											//定义结构体变量
 	DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t)&ADC1->DR;				//外设基地址，给定形参AddrA
@@ -232,7 +139,7 @@ void ADC_Configuration(void)
 	DMA_InitStructure.DMA_MemoryDataSize = DMA_MemoryDataSize_HalfWord;			//存储器数据宽度，选择半字，与源数据宽度对应
 	DMA_InitStructure.DMA_MemoryInc = DMA_MemoryInc_Enable;						//存储器地址自增，选择使能，每次转运后，数组移到下一个位置
 	DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralSRC;							//数据传输方向，选择由外设到存储器，ADC数据寄存器转到数组
-	DMA_InitStructure.DMA_BufferSize = 6;										//转运的数据大小（转运次数），与ADC通道数一致
+	DMA_InitStructure.DMA_BufferSize = 2;										//转运的数据大小（转运次数），与ADC通道数一致
 	DMA_InitStructure.DMA_Mode = DMA_Mode_Circular;								//模式，选择循环模式，与ADC的连续转换一致
 	DMA_InitStructure.DMA_M2M = DMA_M2M_Disable;								//存储器到存储器，选择失能，数据由ADC外设触发转运到存储器
 	DMA_InitStructure.DMA_Priority = DMA_Priority_High;						//优先级，选择中等
@@ -316,26 +223,36 @@ uint16_t Filter_AverageCalc(uint16_t *buffer, uint16_t n)
  输入参数  : 无
  输出参数  : void
 ************************************************************************************/
+#if 1
 void BemfCheck(void)  
 { 
 	static uint16_t  V_Bus_Half=0; 
-	static uint16_t  Bemf_T=0; 
+	static uint16_t U_Vol_run;
+	static uint16_t V_Vol_run;
+	static uint16_t W_Vol_run;
+	static uint16_t U_Array[50];
+	static uint16_t V_Array[50];
+	static uint16_t W_Array[50];
+	static uint16_t u_idx;
 	if(sysflags.Angle_Mask==0)//等待续流结束
 	{	
 		if(Motor.PhaseCnt == 3 || Motor.PhaseCnt == 6)		//采样U相
 		{
-			Motor.Bemf=RegularConvData_Tab[0];
+			Motor.Bemf = ADC_GetInjectedConversionValue(ADC1, ADC_InjectedChannel_1);
 		}
 		else if(Motor.PhaseCnt == 2 || Motor.PhaseCnt == 5)	//采样V相
 		{
-			Motor.Bemf=RegularConvData_Tab[1];
+			Motor.Bemf = ADC_GetInjectedConversionValue(ADC1, ADC_InjectedChannel_2);
 		}
 		else if(Motor.PhaseCnt == 1 || Motor.PhaseCnt == 4)	//采样W相
 		{
-			Motor.Bemf=RegularConvData_Tab[3];
+			Motor.Bemf = ADC_GetInjectedConversionValue(ADC1, ADC_InjectedChannel_3);
 		}
-		//Motor.Bemf=RegularConvData_Tab[4]; 		//端电压采样	//待修改 改为0 | 1 | 3，需要先判断导通相
-		V_Bus_Half=(uint16_t)(RegularConvData_Tab[2]*0.5);	//母线电压的一半 *Ku待定
+		V_Bus_Half=(uint16_t)(RegularConvData_Tab[0]*0.5);	//母线电压的一半 *Ku待定
+		U_Vol_run = ADC_GetInjectedConversionValue(ADC1, ADC_InjectedChannel_1);
+		V_Vol_run = ADC_GetInjectedConversionValue(ADC1, ADC_InjectedChannel_2);
+		W_Vol_run = ADC_GetInjectedConversionValue(ADC1, ADC_InjectedChannel_3);
+		//u_idx ++;
 	}
 	if((sysflags.ChangePhase==0)&&(sysflags.Angle_Mask==0))
 	{
@@ -344,7 +261,6 @@ void BemfCheck(void)
 			case 1:
 				if(Motor.Bemf<V_Bus_Half)   	//打印一下此时bemf
 				{
-					Bemf_T = Motor.Bemf;
 					Sysvariable.BlankingCnt++;
 					if(Sysvariable.BlankingCnt>=Filter_Count)	//滤波延迟补偿
 					{
@@ -356,18 +272,23 @@ void BemfCheck(void)
 				break;
 						 
 			case 2:
-			if(Motor.Bemf>V_Bus_Half)		//为什么是大于？
-			{
-				Sysvariable.BlankingCnt++;
-				if(Sysvariable.BlankingCnt>=Filter_Count)
+				if(Motor.Bemf>V_Bus_Half)		//为什么是大于？
 				{
-					Sysvariable.BlankingCnt=0;
-					Motor.PhaseCnt =3;
-					CalcSpeedTime();
+					Sysvariable.BlankingCnt++;
+					if(Sysvariable.BlankingCnt>=Filter_Count)
+					{
+						Sysvariable.BlankingCnt=0;
+						Motor.PhaseCnt =3;
+						CalcSpeedTime();
+					}
 				}
-			}
 			break;
 			case 3:
+				// U_Array[u_idx] = U_Vol_run;
+				// V_Array[u_idx] = V_Vol_run;
+				// W_Array[u_idx] = W_Vol_run;
+				// u_idx++;
+
 				if(Motor.Bemf<V_Bus_Half)
 				{
 					Sysvariable.BlankingCnt++;
@@ -420,6 +341,26 @@ void BemfCheck(void)
 		}
 	} 
 }
+#else
+void BemfCheck(void)  
+{
+	if(sysflags.Angle_Mask==0)//等待续流结束
+	{	
+		if(Motor.PhaseCnt == 3 || Motor.PhaseCnt == 6)		//采样U相
+		{
+			Motor.UVoltage = ADC_GetInjectedConversionValue(ADC1, ADC_InjectedChannel_1);
+		}
+		else if(Motor.PhaseCnt == 2 || Motor.PhaseCnt == 5)	//采样V相
+		{
+			Motor.VVoltage = ADC_GetInjectedConversionValue(ADC1, ADC_InjectedChannel_2);
+		}
+		else if(Motor.PhaseCnt == 1 || Motor.PhaseCnt == 4)	//采样W相
+		{
+			Motor.WVoltage = ADC_GetInjectedConversionValue(ADC1, ADC_InjectedChannel_3);
+		}
+	}
+}
+#endif
 /*****************************************************************************
  函 数 名  : JudgeErrorCommutation
  功能描述  : 判断换相错误/长时间不换相  
@@ -454,7 +395,7 @@ void JudgeErrorCommutation()
 void Fault_OverUnderVoltage(void)
 {
 	static	uint16_t  VoltageProCnt = 0;
-	ADCSampPare.BUS_Voltage = RegularConvData_Tab[2]*3.3*72.7/4095/4.7;           //DC母线电压		
+	ADCSampPare.BUS_Voltage = RegularConvData_Tab[0]*3.3*72.7/4095/4.7;           //DC母线电压		
 	if((ADCSampPare.BUS_Voltage < Min_BUS_Voltage) || (ADCSampPare.BUS_Voltage > Max_BUS_Voltage))
 	{
 		VoltageProCnt ++;
@@ -520,9 +461,9 @@ void  Instant_Current_Cale(void)
 {
 	if(mcState==mcRun)
 	{
-		if(RegularConvData_Tab[4]>mcCurOffset.I_Off_Average)
+		if(ADC_GetInjectedConversionValue(ADC1, ADC_InjectedChannel_4)>mcCurOffset.I_Off_Average)
 		{
-			Global_Current=(RegularConvData_Tab[4]-mcCurOffset.I_Off_Average);//*CURRENT_COFF; AD值
+			Global_Current=(ADC_GetInjectedConversionValue(ADC1, ADC_InjectedChannel_4)-mcCurOffset.I_Off_Average);//*CURRENT_COFF; AD值
 		}
 		else
 		{
@@ -562,7 +503,7 @@ void Fault_Soft_Overcurrent(void)
 void FaultMos_OverTemperature(void) 
 {  
     static  uint8_t  OverTempcnt=0;	  
-		ADCSampPare.PCB_Temp   =  RegularConvData_Tab[5]*3.3/4095;           //电路板温度	
+		ADCSampPare.PCB_Temp   =  RegularConvData_Tab[1]*3.3/4095;           //电路板温度	
 		if(ADCSampPare.PCB_Temp<=Max_PCB_Temp) //PCB温度
 		{
 			  OverTempcnt++;

@@ -89,7 +89,7 @@ typedef struct {
 		   int32_t   Coeff_filterK2;        // 一阶低通滤波器系数2
  }ADCSamp;
 GLOBAL_ADC_  ADCSamp   ADCSampPare;
-GLOBAL_ADC_  volatile  uint16_t  RegularConvData_Tab[6];
+GLOBAL_ADC_  volatile  uint16_t  RegularConvData_Tab[2];
 GLOBAL_ADC_  float     Current_Filter(void);
 GLOBAL_ADC_  uint16_t  UserRequireSpeed;
 GLOBAL_ADC_  uint8_t   Falg_Waiting;

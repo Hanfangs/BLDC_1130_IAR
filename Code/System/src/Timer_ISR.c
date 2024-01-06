@@ -9,15 +9,15 @@
 uint16_t ADCIntProtectCnt=0;
 uint16_t TuneDutyRatioCnt = 0;
 
-static uint16_t curr_test0[5];
-static uint16_t curr_test1[5];
-static uint16_t curr_test2[5];
-static uint16_t curr_test3[5];
-static uint16_t curr_test4[5];
-static uint16_t curr_test5[5];
-static uint16_t curr_test[6][15];
-uint16_t i = 0;
-uint16_t j = 0;
+// static uint16_t curr_test0[5];
+// static uint16_t curr_test1[5];
+// static uint16_t curr_test2[5];
+// static uint16_t curr_test3[5];
+// static uint16_t curr_test4[5];
+// static uint16_t curr_test5[5];
+// static uint16_t curr_test[6][15];
+// uint16_t i = 0;
+// uint16_t j = 0;
 
 /****************************************************************s*************
  函 数 名  : TIM3_IRQHandler
@@ -51,8 +51,8 @@ void  TIM3_IRQHandler(void)
 	{
 		sysflags.ChangePhase=0;
 		Startup_Turn();//
-		TIM3->ARR=Mask_TIME;
-		TIM3->CNT = 0;
+		TIM3->ARR=Mask_TIME;	//续流定时
+		TIM3->CNT = 0; 	
 		sysflags.Angle_Mask=1;		 
 	}
 	TIM_ClearITPendingBit(TIM3, TIM_IT_Update);	   
@@ -69,8 +69,31 @@ void  TIM4_IRQHandler(void)
 	{
 		Sysvariable.ChangeTime_Count++;		//计算时间 ms
 		Sysvariable.ADCTimeCnt ++;
+		// if(mcState == mcRun)
+		// {
+		// 	TuneDutyRatioCnt ++;	
+		// }
 		TIM_ClearITPendingBit(TIM4, TIM_IT_Update);
 	}
+}
+
+/****************************************************************s*************
+ 函 数 名  : TIM1_CC_IRQHandler
+ 功能描述  : TIM1_CC中断   
+ 输入参数  : 无
+ 输出参数  : void
+*****************************************************************************/
+void TIM1_CC_IRQHandler(void)     
+{
+    if ( TIM_GetITStatus ( TIM1, TIM_IT_CC4 ) != RESET )              //CCR4中断
+    {
+        TIM_ClearFlag(TIM1, TIM_FLAG_CC4);
+        if(mcState == mcRun)
+		{
+			BemfCheck();
+			// TuneDutyRatioCnt ++;
+		}
+    }
 }
 /*****************************************************************************
  函 数 名  : DMA1_Channel1_IRQHandler
@@ -179,7 +202,7 @@ void DMA1_Channel1_IRQHandler(void)
 			StartupDrag();//强拖
 			break;		
 		case mcRun:	
-			BemfCheck();	//反电动势检测 
+			//BemfCheck();	//反电动势检测 
 		//JudgeErrorCommutation();
 			break;			
 		default:

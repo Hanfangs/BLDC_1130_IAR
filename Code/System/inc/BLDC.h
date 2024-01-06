@@ -127,6 +127,9 @@ typedef struct {
 	  uint8_t    LastPhase;
 	  uint8_t    NextPhase;
 	  uint16_t   Bemf;
+	  uint16_t   UVoltage;
+	  uint16_t   VVoltage;
+	  uint16_t   WVoltage;
 }BLDC;
 GLOBAL_BLDC_  BLDC  Motor;
 

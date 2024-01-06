@@ -155,7 +155,10 @@ void EnterRunInit(void)
 	static uint16_t idx;
 	static uint16_t DragTimeArray[60];
 	static uint16_t DutyArray[60];
-	static uint16_t U_Vol[100];
+	static uint16_t U_Vol[50];
+	static uint16_t V_Vol[50];
+	static uint16_t W_Vol[50];
+	static uint16_t U_Bus[50];
 	static uint16_t TimeLeft;
 	if(Sysvariable.ADCTimeCnt >= Sysvariable.DragTime)		//DragTime开始步进时间 = 190,采样时间大于步进时间时，开始递减
 	{
@@ -174,7 +177,10 @@ void EnterRunInit(void)
 		}
 		DragTimeArray[idx] = Sysvariable.DragTime;
 		DutyArray[idx] = Motor.Duty;
-		U_Vol[idx] = RegularConvData_Tab[0];
+		U_Vol[idx] = ADC_GetInjectedConversionValue(ADC1, ADC_InjectedChannel_1);
+		V_Vol[idx] = ADC_GetInjectedConversionValue(ADC1, ADC_InjectedChannel_2);
+		W_Vol[idx] = ADC_GetInjectedConversionValue(ADC1, ADC_InjectedChannel_3);
+		U_Bus[idx] = RegularConvData_Tab[0];
 		idx++;
 		Motor.PhaseCnt++;		//步进一次，换相一次
 		Sysvariable.DelayTime30=TIM2->CNT; //过零点时间间隔，从0到一次换相的时间，就是一个过零点的时间间隔
@@ -213,7 +219,7 @@ void StartupDrag(void)
 			return;
 		} 
 		ChangeTimeArray[idx] = Sysvariable.ChangeTime_Count;
-		U_Vol[idx] = RegularConvData_Tab[0];
+		U_Vol[idx] = ADC_GetInjectedConversionValue(ADC1, ADC_InjectedChannel_1);
 		idx++;
 		Sysvariable.ChangeCount++;		//换相次数：0~47
 		Change_Voltage();
@@ -385,6 +391,7 @@ void Startup_Turn(void)
 			}
 			break;
 		}
+		TIM_SetCompare4(BLDC_TIMx, Motor.Duty / 2); 
 }
 /*****************************************************************************
  函 数 名  : MotorControl

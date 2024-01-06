@@ -15,7 +15,7 @@
 //速度PID
 #define  INIT_PURPOSE       0
 #define  RUN_PURPOSE        1
-#define  SPEEDLOOPCNT       3   //速度占空比调整周期
+#define  SPEEDLOOPCNT       3   //速度占空比调整周期  3->10
 
 #define    _IQmpy(A,B)         ((A) * (B))
 #define    FirstOrder_LPF_Cacl(Xn, Yn_1, a)	\

@@ -17,8 +17,8 @@
 // #define			Cent_PWMFRE_8K		  16000//48000000/16000=3000 0.02U/N
 // #define			Cent_PWMFRE_10K		  20000//48000000/20000=2400
 // #define			Cent_PWMFRE_15K		  30000//48000000/30000=1600
-#define		  Cent_PWMFRE_24K            24000//72000000/20000=3000
-#define       PWM_ARR                   (uint16_t)(SystemCoreClock/Cent_PWMFRE_24K)               
+#define		  Cent_PWMFRE_24K            24000//72000000/20000=3000     PWM∆µ¬ 
+#define       PWM_ARR                   (uint16_t)(SystemCoreClock/Cent_PWMFRE_24K)       //ARR÷µ  
 
 
 /*---------------------…Ë÷√------------------*/
