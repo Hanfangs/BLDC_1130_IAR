@@ -20,8 +20,8 @@ uint16_t TuneDutyRatioCnt = 0;
 // uint16_t j = 0;
 
 /****************************************************************s*************
- 函 数 名  : TIM3_IRQHandler
- 功能描述  : TIM2中断   
+ 函 数 名  : TIM2_IRQHandler
+ 功能描述  : TIM2中断   60ms
  输入参数  : 无
  输出参数  : void
 *****************************************************************************/
@@ -36,7 +36,7 @@ void  TIM2_IRQHandler(void)
 }
 /*****************************************************************************
  函 数 名  : TIM3_IRQHandler
- 功能描述  : TIM3中断   换相
+ 功能描述  : TIM3中断   换相  100us
  输入参数  : 无
  输出参数  : void
 *****************************************************************************/
@@ -50,7 +50,8 @@ void  TIM3_IRQHandler(void)
 	if(sysflags.ChangePhase==1)
 	{
 		sysflags.ChangePhase=0;
-		Startup_Turn();//
+		Startup_Turn();
+		Motor.step_counter ++;	//记录换相次数
 		TIM3->ARR=Mask_TIME;	//续流定时
 		TIM3->CNT = 0; 	
 		sysflags.Angle_Mask=1;		 
@@ -59,7 +60,7 @@ void  TIM3_IRQHandler(void)
 }	
 /*****************************************************************************
  函 数 名  : TIM4_IRQHandler
- 功能描述  : TIM4中断   1ms
+ 功能描述  : TIM4中断   1ms		转速PID
  输入参数  : 无
  输出参数  : void
 *****************************************************************************/
@@ -69,15 +70,12 @@ void  TIM4_IRQHandler(void)
 	{
 		Sysvariable.ChangeTime_Count++;		//计算时间 ms
 		Sysvariable.ADCTimeCnt ++;
-		// if(mcState == mcRun)
-		// {
-		// 	TuneDutyRatioCnt ++;	
-		// }
+		SpeedController();
 		TIM_ClearITPendingBit(TIM4, TIM_IT_Update);
 	}
 }
 
-/****************************************************************s*************
+/*****************************************************************************
  函 数 名  : TIM1_CC_IRQHandler
  功能描述  : TIM1_CC中断   
  输入参数  : 无
@@ -88,19 +86,62 @@ void TIM1_CC_IRQHandler(void)
     if ( TIM_GetITStatus ( TIM1, TIM_IT_CC4 ) != RESET )              //CCR4中断
     {
         TIM_ClearFlag(TIM1, TIM_FLAG_CC4);
-        if(mcState == mcRun)
+		switch(mcState)
 		{
-			BemfCheck();
-			// TuneDutyRatioCnt ++;
+			case mcAlignment:
+				Align_pos_check_proc();
+				break;
+			case mcDrag:
+				StartupDrag();//强拖
+				break;		
+			case mcRun:	
+				BemfCheck();
+				Instant_Current_Cale();
+				break;			
+			default:
+				break;
 		}
+		ADCIntProtectCnt ++;
     }
 }
+
+/*****************************************************************************
+ 函 数 名  : ADC1_2_IRQHandler
+ 功能描述  : ADC注入通道转换完成中断   
+ 输入参数  : 无
+ 输出参数  : void
+*****************************************************************************/
+// void ADC1_2_IRQHandler(void)     
+// {
+//     if ( ADC_GetITStatus ( ADC1, ADC_IT_JEOC ) != RESET )             
+//     {
+// 		switch(mcState)
+// 		{
+// 			case mcAlignment:
+// 				Align_pos_check_proc();
+// 				break;
+// 			case mcDrag:
+// 				StartupDrag();//强拖
+// 				break;		
+// 			case mcRun:	
+// 				BemfCheck();
+// 				Instant_Current_Cale();
+// 				break;			
+// 			default:
+// 				break;
+// 		}
+// 		ADCIntProtectCnt ++;
+// 		ADC_ClearITPendingBit(ADC1, ADC_IT_JEOC);
+//     }
+// }
+
 /*****************************************************************************
  函 数 名  : DMA1_Channel1_IRQHandler
  功能描述  : DMA中断   过零点检测
  输入参数  : 无
  输出参数  : void
 *****************************************************************************/
+#if 0
 void DMA1_Channel1_IRQHandler(void)
 {
 
@@ -108,19 +149,15 @@ void DMA1_Channel1_IRQHandler(void)
 	{
 		case mcAlignment:
 			Align_pos_check_proc();//初始位置检测进程
-
 #if PULSE_INJECTION
 			if((Flag_adc==1)||(Flag_Charger==1))//充电标志位或者电流检测标志位置1
 			{
 				Charger_Time++;  //时间计数++
-
 			}
-
 			if(Flag_adc==1)//电流检测标志位置1
 			{
 				if(pos_idx<=5) //ADC电流检测序号
 				{
-
 					if(ADC_check_buf[pos_idx] < RegularConvData_Tab[4])
 					{
 						ADC_check_buf[pos_idx] = RegularConvData_Tab[4];//获取峰值电流	//此处有待商酌
@@ -209,13 +246,13 @@ void DMA1_Channel1_IRQHandler(void)
 			break;
 	}
 	
-	if(mcState==mcRun)
-	{	
-		TuneDutyRatioCnt ++;
-	}
+	// if(mcState==mcRun)
+	// {	
+	// 	TuneDutyRatioCnt ++;
+	// }
 	ADCIntProtectCnt ++;
- // GPIOB->ODR ^= GPIO_Pin_4;
-	Instant_Current_Cale();
+	// Instant_Current_Cale();
 	DMA_ClearITPendingBit(DMA1_IT_TC1);
 	
 }
+#endif

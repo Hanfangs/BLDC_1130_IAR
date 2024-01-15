@@ -15,7 +15,7 @@
 //速度PID
 #define  INIT_PURPOSE       0
 #define  RUN_PURPOSE        1
-#define  SPEEDLOOPCNT       3   //速度占空比调整周期  3->10
+#define  SPEEDLOOPCNT       50   //速度占空比调整周期  3->50
 
 #define    _IQmpy(A,B)         ((A) * (B))
 #define    FirstOrder_LPF_Cacl(Xn, Yn_1, a)	\
@@ -32,6 +32,13 @@
 											v.Out = v.Up + v.Ui + v.Ud;\
 											UP16LIMIT(v.Out,v.OutMax,v.OutMin);\
 											v.Up1 = v.Up;	
+
+//定义PID相关宏
+// 这三个参数设定对电机运行影响非常大
+/*************************************/
+#define  P_DATA_ACC                   0.4 //0.7              //加速P参数  0.35
+#define  I_DATA_ACC                   0.05//0.04        //I参数 0.03
+#define  D_DATA_ACC                   0                 //D参数
 
 /*********************************************************************************************************
   电机PID控制结构体
@@ -52,10 +59,22 @@ typedef struct  {
 	uint16_t		Min;
 }PIDCONTROL;
 
+//定义PID结构体
+typedef struct 
+{
+   __IO int      SetPoint;      //设定目标 Desired Value
+   __IO double   Proportion;    //比例常数 Proportional Const
+   __IO double   Integral;      //积分常数 Integral Const
+   __IO double   Derivative;    //微分常数 Derivative Const
+   __IO int      LastError;     //Error[-1]
+   __IO int      PrevError;     //Error[-2]
+}PID;
+
 extern   PIDCONTROL     PID_Speed ;
 extern   float  Speed;
 extern  uint8_t  Enable_Times;
 void     PID_init(void);
+extern  PID bldc_pid;
 extern   void CalcSpeedTime(void);
 extern  void bldcCalcSpeed(void);
 extern  void SpeedController(void);

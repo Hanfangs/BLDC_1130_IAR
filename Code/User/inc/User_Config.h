@@ -17,15 +17,16 @@
 // #define			Cent_PWMFRE_8K		  16000//48000000/16000=3000 0.02U/N
 // #define			Cent_PWMFRE_10K		  20000//48000000/20000=2400
 // #define			Cent_PWMFRE_15K		  30000//48000000/30000=1600
-#define		  Cent_PWMFRE_24K            24000//72000000/20000=3000     PWM频率
+#define		  Cent_PWMFRE_24K            24000//72000000/24000=3000     PWM频率
 #define       PWM_ARR                   (uint16_t)(SystemCoreClock/Cent_PWMFRE_24K)       //ARR值  
-
+#define BLDC_TIM_PRESCALER               0  
+#define BLDC_TIM_REPETITIONCOUNTER       0
 
 /*---------------------设置------------------*/
 //系统频率--没用到
 // #define   SYS_CLK          (48000000)
 // #define   PWM_FREQ         (Cent_PWMFRE_16K)
-#define   PWM_ADJ          (16)
+#define   PWM_ADJ          (100)      //16->1
 // #define   TIM3_Prescaler   (48)
 //启动
 #define ALIGNMENTNMS      (0)                 // 定位时间 
@@ -52,7 +53,7 @@
  //续流屏蔽和换相时间补偿
  #define  Low_DutyMask_Time         (2)     //低占空比续流屏蔽时间   运行过程中无故硬件过流  调整该值
  #define  High_DutyMask_Time        (3)    //高占空比续流屏蔽时间 --运行过程中无故硬件过流  调整该值
- #define  Delay_Filter              (2)      //反电动势采集滤波深度  --影响波形的超前和滞后
+ #define  Delay_Filter              (0)      //反电动势采集滤波深度  --影响波形的超前和滞后     2->0
  
  //加速限制 
  #define   ADD_DUTY1    (1)       //开环加速幅度
@@ -110,7 +111,12 @@
 #define  Motor_MinSpeed    (100)
 #define  Motor_MaxSpeed    (500)
 #define  Motor_UserSpeed   (500)
+#define  Motor_MAX_SPEED   (1600)
+#define	 Motor_MIN_SPEED   (100)
 
+#define  MOTOR_MIN_DUTY_SPEED       (300)
+#define  MOTOR_MAX_DUTY_SPEED       (1200)
+#define  MOTOR_ACC_DELTA_SPEED		(1)	
 /*-------------------硬件参数--------------------*/
 //母线电压采样
 // #define RV_BUS_1      (68.0)         //单位KΩ 分压电阻    Y
@@ -132,7 +138,9 @@
 // #define BASE_SPEED    (20000)     //单位rpm 电机额定转速*1.5 Y
 //转速计算因子
 #define  SPEEDFACTOR	(2500000)//(60 * SYS_CLK / (6 * POLE_PAIR * TIM2_Prescaler) )=1000 0000/POLE_PAIR// 计算转速的系数  5000000->2500000
-       
+
+#define SHF_TEST 1  
+#define SHF_TEST2 0     
 
 #endif
 

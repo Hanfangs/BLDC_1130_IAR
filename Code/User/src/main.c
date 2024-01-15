@@ -20,7 +20,9 @@
   * @param  None
   * @retval None
   **************************************************/
-  int main(void)
+  
+
+int main(void)
 {
  
 	Motor.ControlMode =Control_Mode ;//开环运行
@@ -34,6 +36,7 @@
 	TIM2_Config();              //定时器初始化  
 	TIM3_Config();
 	TIM4_Config();
+
 	mcState=mcStop;
 
 	while(1)
@@ -93,7 +96,7 @@
 				
 			case Operation:
 				MotorControl();
-				if(ADCIntProtectCnt >= PWM_ADJ)	  //16*62.5=1ms
+				if(ADCIntProtectCnt >= PWM_ADJ)	  //16*62.5=1ms		此处控制1ms就行
 				{		
 					ADCIntProtectCnt=0;
 					Cal_AverCurrent();	

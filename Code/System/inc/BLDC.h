@@ -112,24 +112,33 @@ typedef enum
 GLOBAL_BLDC_ Fault   mcFault;
 typedef struct {
 
-    uint8_t    ControlMode;                            /* 电机控制方式    */
-    uint8_t    State;                                 /* 电机当前状态   */
-    uint16_t   TheorySpeed;                           /* 电机理论速度   */
-    uint16_t   ActualSpeed;                           /* 电机实际速度   */
-    uint16_t   ActAvgSpeed;                           /* 电机平均速度   */
-	  uint16_t   Last_Speed;
-	  uint16_t   OpenSpeed;
-    uint16_t   Duty;                                  /* 电机PWM占空比  */
-	  uint16_t   Order;
-	  float      Current;
-	  uint16_t   StepNum;
-	  uint8_t    PhaseCnt;															/* 当前相位  */
-	  uint8_t    LastPhase;
-	  uint8_t    NextPhase;
-	  uint16_t   Bemf;
-	  uint16_t   UVoltage;
-	  uint16_t   VVoltage;
-	  uint16_t   WVoltage;
+	uint8_t    ControlMode;                            /* 电机控制方式    */
+	uint8_t    State;                                 /* 电机当前状态   */
+	uint16_t   TheorySpeed;                           /* 电机理论速度   */
+	uint16_t   ActualSpeed;                           /* 电机实际速度   */
+	uint16_t   ActAvgSpeed;                           /* 电机平均速度   */
+	uint16_t   Last_Speed;
+	uint16_t   OpenSpeed;
+	uint16_t   Duty;                                  /* 电机PWM占空比  */
+	uint16_t   Order;
+	float      Current;
+	uint16_t   StepNum;
+	uint8_t    PhaseCnt;															/* 当前相位  */
+	uint8_t    LastPhase;
+	uint8_t    NextPhase;
+	uint16_t   Bemf;
+	uint16_t   UVoltage;
+	uint16_t   VVoltage;
+	uint16_t   WVoltage;
+	int16_t	   Uab;
+	int16_t	   Ubc;
+	int16_t	   Uca;
+	int16_t    Ea;
+	int16_t    Eb;
+	int16_t    Ec;
+	uint16_t   step_counter;
+	uint16_t   step_counter_prev;
+	uint16_t   motor_speed;                           /* 电机设置速度   */
 }BLDC;
 GLOBAL_BLDC_  BLDC  Motor;
 
@@ -148,6 +157,7 @@ typedef struct
     uint16_t  DelayTime30;
 	uint16_t  ChangeCount;
 	uint16_t  ChangeTime_Count;
+	uint16_t  LastDragTime;
 }variable;
 GLOBAL_BLDC_  variable Sysvariable;
 GLOBAL_BLDC_  uint8_t    pos_check_stage;

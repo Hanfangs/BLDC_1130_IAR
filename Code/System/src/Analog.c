@@ -41,7 +41,7 @@ void NVIC_Configuration(void)//100us        //配置中断函数优先级
 	/* Enable the TIM3 Interrupt        100us定时用的      */
 	NVIC_InitStructure.NVIC_IRQChannel = TIM3_IRQn;
 	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0;
-	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 1;
+	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;
 	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
 	NVIC_Init(&NVIC_InitStructure);
 
@@ -128,7 +128,7 @@ void ADC_Configuration(void)
 	ADC_InjectedChannelConfig(ADC1, Current_Channel, 4, ADC_SampleTime_7Cycles5);
 	ADC_ExternalTrigInjectedConvConfig(ADC1, ADC_ExternalTrigInjecConv_T1_CC4); 
 	ADC_ExternalTrigInjectedConvCmd(ADC1, ENABLE);
-	//ADC_ITConfig(ADC1,ADC_IT_JEOC,ENABLE);
+	// ADC_ITConfig(ADC1,ADC_IT_JEOC,ENABLE);
 
 	/*DMA初始化*/
 	DMA_InitTypeDef DMA_InitStructure;											//定义结构体变量
@@ -145,7 +145,7 @@ void ADC_Configuration(void)
 	DMA_InitStructure.DMA_Priority = DMA_Priority_High;						//优先级，选择中等
 	DMA_Init(DMA1_Channel1, &DMA_InitStructure);								//将结构体变量交给DMA_Init，配置DMA1的通道1
 
-	DMA_ITConfig(DMA1_Channel1, DMA_IT_TC , ENABLE);
+	// DMA_ITConfig(DMA1_Channel1, DMA_IT_TC , ENABLE);
 	/* 开启内部温度传感器和 Vrefint 通道 */
 	ADC_TempSensorVrefintCmd(ENABLE);
 	
@@ -223,16 +223,16 @@ uint16_t Filter_AverageCalc(uint16_t *buffer, uint16_t n)
  输入参数  : 无
  输出参数  : void
 ************************************************************************************/
-#if 1
+#if 0
 void BemfCheck(void)  
 { 
 	static uint16_t  V_Bus_Half=0; 
 	static uint16_t U_Vol_run;
 	static uint16_t V_Vol_run;
 	static uint16_t W_Vol_run;
-	static uint16_t U_Array[50];
-	static uint16_t V_Array[50];
-	static uint16_t W_Array[50];
+	static uint16_t U_Array[100];
+	static uint16_t V_Array[100];
+	static uint16_t W_Array[100];
 	static uint16_t u_idx;
 	if(sysflags.Angle_Mask==0)//等待续流结束
 	{	
@@ -258,11 +258,99 @@ void BemfCheck(void)
 	{
 		switch(Motor.PhaseCnt)			//此时万一失步了，相位不就不准了
 		{
+#if SHF_TEST2
 			case 1:
-				if(Motor.Bemf<V_Bus_Half)   	//打印一下此时bemf
+				if((Motor.Bemf<V_Bus_Half) || (TIM2->CNT >= Sysvariable.LastDragTime * 3))   	//长时间检测不到过零点就强制换相
 				{
 					Sysvariable.BlankingCnt++;
-					if(Sysvariable.BlankingCnt>=Filter_Count)	//滤波延迟补偿
+					if(Sysvariable.BlankingCnt>=Filter_Count)	//这个取0，因为本来就是延迟相位了，再延迟就错了
+					{
+						Sysvariable.BlankingCnt=0;
+						Sysvariable.ADCTimeCnt = 0;
+						Motor.PhaseCnt = 2;      	//换相		
+						CalcSpeedTime();  	
+					}									 
+				}	 						
+				break;
+						 
+			case 2:
+				if((Motor.Bemf>V_Bus_Half) || (TIM2->CNT >= Sysvariable.LastDragTime * 3))		//为什么是大于？
+				{
+					Sysvariable.BlankingCnt++;
+					if(Sysvariable.BlankingCnt>=Filter_Count)
+					{
+						Sysvariable.BlankingCnt=0;
+						Sysvariable.ADCTimeCnt = 0;
+						Motor.PhaseCnt =3;
+						CalcSpeedTime();
+					}
+				}
+			break;
+			case 3:
+				if((Motor.Bemf<V_Bus_Half) || (TIM2->CNT >= Sysvariable.LastDragTime * 3))
+				{
+					Sysvariable.BlankingCnt++;
+					if(Sysvariable.BlankingCnt>=Filter_Count)
+					{
+						Sysvariable.BlankingCnt=0;
+						Sysvariable.ADCTimeCnt = 0;
+						Motor.PhaseCnt =4;
+						CalcSpeedTime();		//检验一下此处的换相时间间隔对不对
+					}									 
+				}
+				break;
+			case 4:
+				if((Motor.Bemf>V_Bus_Half) || (TIM2->CNT >= Sysvariable.LastDragTime * 3))
+				{
+					Sysvariable.BlankingCnt++;
+					if(Sysvariable.BlankingCnt>=Filter_Count)
+					{
+						Sysvariable.BlankingCnt=0;
+						Sysvariable.ADCTimeCnt = 0;
+						Motor.PhaseCnt =5;
+						CalcSpeedTime();
+					}
+				}
+				break;
+			case 5:
+				if(u_idx < 100)
+				{
+					U_Array[u_idx] = U_Vol_run;
+					V_Array[u_idx] = V_Vol_run;
+					W_Array[u_idx] = W_Vol_run;		//示波器停下来看一眼
+					u_idx ++;
+				}
+				if((Motor.Bemf<V_Bus_Half) || (TIM2->CNT >= Sysvariable.LastDragTime * 3))
+				{
+					Sysvariable.BlankingCnt++;
+					if(Sysvariable.BlankingCnt>=Filter_Count)
+					{
+						Sysvariable.BlankingCnt=0;
+						Sysvariable.ADCTimeCnt = 0;
+						Motor.PhaseCnt =6;
+						CalcSpeedTime();	
+					}									 
+				}
+				break;
+			case 6:
+				if((Motor.Bemf>V_Bus_Half) || (TIM2->CNT >= Sysvariable.LastDragTime * 3))
+				{
+					Sysvariable.BlankingCnt++;
+					if(Sysvariable.BlankingCnt>=Filter_Count)
+					{
+						Sysvariable.BlankingCnt=0;
+						Sysvariable.ADCTimeCnt = 0;
+						Motor.PhaseCnt =1;
+						CalcSpeedTime();
+					}
+				}																 
+				break;
+#else
+			case 1:
+				if(Motor.Bemf<V_Bus_Half)   	//长时间检测不到过零点就强制换相
+				{
+					Sysvariable.BlankingCnt++;
+					if(Sysvariable.BlankingCnt>=Filter_Count)	//这个取0，因为本来就是延迟相位了，再延迟就错了
 					{
 						Sysvariable.BlankingCnt=0;
 						Motor.PhaseCnt = 2;      	//换相		
@@ -284,11 +372,6 @@ void BemfCheck(void)
 				}
 			break;
 			case 3:
-				// U_Array[u_idx] = U_Vol_run;
-				// V_Array[u_idx] = V_Vol_run;
-				// W_Array[u_idx] = W_Vol_run;
-				// u_idx++;
-
 				if(Motor.Bemf<V_Bus_Half)
 				{
 					Sysvariable.BlankingCnt++;
@@ -296,7 +379,7 @@ void BemfCheck(void)
 					{
 						Sysvariable.BlankingCnt=0;
 						Motor.PhaseCnt =4;
-						CalcSpeedTime();	
+						CalcSpeedTime();		//检验一下此处的换相时间间隔对不对
 					}									 
 				}
 				break;
@@ -325,7 +408,132 @@ void BemfCheck(void)
 				}
 				break;
 			case 6:
+				if(u_idx < 100)
+				{
+					U_Array[u_idx] = U_Vol_run;
+					V_Array[u_idx] = V_Vol_run;
+					W_Array[u_idx] = W_Vol_run;		//示波器停下来看一眼
+					u_idx ++;
+				}
 				if(Motor.Bemf>V_Bus_Half)
+				{
+					Sysvariable.BlankingCnt++;
+					if(Sysvariable.BlankingCnt>=Filter_Count)
+					{
+						Sysvariable.BlankingCnt=0;
+						Motor.PhaseCnt =1;
+						CalcSpeedTime();
+					}
+				}																 
+				break;
+#endif
+			default:
+				break;
+		}
+	} 
+}
+#else
+void BemfCheck(void)  
+{
+	static uint16_t U_Array[100];
+	static uint16_t V_Array[100];
+	static uint16_t W_Array[100];
+	static uint16_t u_idx;
+	if(sysflags.Angle_Mask==0)//等待续流结束
+	{	
+		Motor.UVoltage = ADC_GetInjectedConversionValue(ADC1, ADC_InjectedChannel_1);
+		Motor.VVoltage = ADC_GetInjectedConversionValue(ADC1, ADC_InjectedChannel_2);
+		Motor.WVoltage = ADC_GetInjectedConversionValue(ADC1, ADC_InjectedChannel_3);
+		Motor.Uab = Motor.UVoltage - Motor.VVoltage;
+		Motor.Ubc = Motor.VVoltage - Motor.WVoltage;
+		Motor.Uca = Motor.WVoltage - Motor.UVoltage;
+		if(Motor.PhaseCnt == 3 || Motor.PhaseCnt == 6)		//采样U相
+		{
+			Motor.Ea = (Motor.Uab - Motor.Uca) / 2;
+		}
+		else if(Motor.PhaseCnt == 2 || Motor.PhaseCnt == 5)	//采样V相
+		{
+			Motor.Eb = (Motor.Ubc - Motor.Uab) / 2;
+		}
+		else if(Motor.PhaseCnt == 1 || Motor.PhaseCnt == 4)	//采样W相
+		{
+			Motor.Ec = (Motor.Uca - Motor.Ubc) / 2;
+		}
+	}
+	if((sysflags.ChangePhase==0)&&(sysflags.Angle_Mask==0))
+	{
+		switch(Motor.PhaseCnt)			//此时万一失步了，相位不就不准了
+		{
+			case 1:
+				if(Motor.Ec < 0)   	//长时间检测不到过零点就强制换相
+				{
+					Sysvariable.BlankingCnt++;
+					if(Sysvariable.BlankingCnt>=Filter_Count)	//这个取0，因为本来就是延迟相位了，再延迟就错了
+					{
+						Sysvariable.BlankingCnt=0;
+						Motor.PhaseCnt = 2;      	//换相		
+						CalcSpeedTime();  	
+					}									 
+				}	 						
+				break;
+						 
+			case 2:
+				if(Motor.Eb > 0)		//为什么是大于？
+				{
+					Sysvariable.BlankingCnt++;
+					if(Sysvariable.BlankingCnt>=Filter_Count)
+					{
+						Sysvariable.BlankingCnt=0;
+						Motor.PhaseCnt =3;
+						CalcSpeedTime();
+					}
+				}
+			break;
+			case 3:
+				if(Motor.Ea < 0)
+				{
+					Sysvariable.BlankingCnt++;
+					if(Sysvariable.BlankingCnt>=Filter_Count)
+					{
+						Sysvariable.BlankingCnt=0;
+						Motor.PhaseCnt =4;
+						CalcSpeedTime();		//检验一下此处的换相时间间隔对不对
+					}									 
+				}
+				break;
+			case 4:
+				if(Motor.Ec > 0)
+				{
+					Sysvariable.BlankingCnt++;
+					if(Sysvariable.BlankingCnt>=Filter_Count)
+					{
+						Sysvariable.BlankingCnt=0;
+						Motor.PhaseCnt =5;
+						CalcSpeedTime();
+					}
+				}
+				break;
+			case 5:
+				if(Motor.Eb < 0)
+				{
+					Sysvariable.BlankingCnt++;
+					if(Sysvariable.BlankingCnt>=Filter_Count)
+					{
+						Sysvariable.BlankingCnt=0;
+						Motor.PhaseCnt =6;
+						CalcSpeedTime();	
+					}									 
+				}
+				break;
+			case 6:
+				if(u_idx < 100)
+				{
+					U_Array[u_idx] = Motor.Ea;
+					V_Array[u_idx] = Motor.Eb;
+					W_Array[u_idx] = Motor.Ec;		//示波器停下来看一眼
+					u_idx ++;
+				}
+				if(Motor.Ea > 0)
 				{
 					Sysvariable.BlankingCnt++;
 					if(Sysvariable.BlankingCnt>=Filter_Count)
@@ -338,25 +546,6 @@ void BemfCheck(void)
 				break;
 			default:
 				break;
-		}
-	} 
-}
-#else
-void BemfCheck(void)  
-{
-	if(sysflags.Angle_Mask==0)//等待续流结束
-	{	
-		if(Motor.PhaseCnt == 3 || Motor.PhaseCnt == 6)		//采样U相
-		{
-			Motor.UVoltage = ADC_GetInjectedConversionValue(ADC1, ADC_InjectedChannel_1);
-		}
-		else if(Motor.PhaseCnt == 2 || Motor.PhaseCnt == 5)	//采样V相
-		{
-			Motor.VVoltage = ADC_GetInjectedConversionValue(ADC1, ADC_InjectedChannel_2);
-		}
-		else if(Motor.PhaseCnt == 1 || Motor.PhaseCnt == 4)	//采样W相
-		{
-			Motor.WVoltage = ADC_GetInjectedConversionValue(ADC1, ADC_InjectedChannel_3);
 		}
 	}
 }
@@ -459,17 +648,13 @@ void Cal_AverCurrent(void)
 
 void  Instant_Current_Cale(void)
 {
-	if(mcState==mcRun)
+	if(ADC_GetInjectedConversionValue(ADC1, ADC_InjectedChannel_4)>mcCurOffset.I_Off_Average)
 	{
-		if(ADC_GetInjectedConversionValue(ADC1, ADC_InjectedChannel_4)>mcCurOffset.I_Off_Average)
-		{
-			Global_Current=(ADC_GetInjectedConversionValue(ADC1, ADC_InjectedChannel_4)-mcCurOffset.I_Off_Average);//*CURRENT_COFF; AD值
-		}
-		else
-		{
-			//Global_Current=0;
-		}
-	  
+		Global_Current=(ADC_GetInjectedConversionValue(ADC1, ADC_InjectedChannel_4)-mcCurOffset.I_Off_Average);//*CURRENT_COFF; AD值
+	}
+	else
+	{
+		//Global_Current=0;
 	}
 }
 //没用到

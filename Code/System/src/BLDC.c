@@ -136,9 +136,20 @@ void EnterRunInit(void)
 	Sysvariable.BlankingCnt = 0;
 	sysflags.ChangePhase=0;
 	sysflags.Angle_Mask=0;
+	sysflags.SwapFlag = 0;
 	TuneDutyRatioCnt=0;
+	Sysvariable.LastDragTime = Sysvariable.DelayTime30 * 2;
 	// Motor.PhaseCnt++;
+	// if(Motor.PhaseCnt > 6) {
+	// 	Motor.PhaseCnt = 1;
+	// }
+	// if(Motor.PhaseCnt < 1) {
+	// 	Motor.PhaseCnt = 6;
+	// } 
 	//Startup_Turn(); //强制换向
+#if SHF_TEST
+	IncPIDInit();
+#endif
 	mcState = mcRun;
 	
 }
@@ -148,7 +159,7 @@ void EnterRunInit(void)
  输入参数  : 无
  输出参数  : void
 *****************************************************************************/
-#if 1
+#if 0
  void StartupDrag(void)
 {	
 	//Sysvariable.ADCTimeCnt ++;
@@ -160,21 +171,19 @@ void EnterRunInit(void)
 	static uint16_t W_Vol[50];
 	static uint16_t U_Bus[50];
 	static uint16_t TimeLeft;
-	if(Sysvariable.ADCTimeCnt >= Sysvariable.DragTime)		//DragTime开始步进时间 = 190,采样时间大于步进时间时，开始递减
+	if(Sysvariable.ADCTimeCnt >= Sysvariable.DragTime)		//拖动时间到了
 	{
 		Sysvariable.ADCTimeCnt = 0;
 		Motor.Duty += RAMP_DUTY_INC;
-		Sysvariable.DragTime -= (uint16_t)((Sysvariable.DragTime / RAMP_TIM_STEP) + 1);		//一开始是  190-[(190/9)+1]=168
-		if(Sysvariable.DragTime < RAMP_TIM_END)				// 190，168，149，...20；注意此处递减步数应该按照电机参数来设计
+		Sysvariable.DragTime -= (uint16_t)((Sysvariable.DragTime / RAMP_TIM_STEP) + 1);		
+		if(Sysvariable.DragTime < RAMP_TIM_END)				
 		{
 			Sysvariable.DragTime = RAMP_TIM_END;
 			TimeLeft = Sysvariable.ChangeTime_Count;
-			//All_Discharg();		//后面记得删，调试用
 			EnterRunInit();		//此时强拖完成了，切换为反电势检测
 			return;
-
-	   //}
 		}
+#if 1
 		DragTimeArray[idx] = Sysvariable.DragTime;
 		DutyArray[idx] = Motor.Duty;
 		U_Vol[idx] = ADC_GetInjectedConversionValue(ADC1, ADC_InjectedChannel_1);
@@ -182,6 +191,7 @@ void EnterRunInit(void)
 		W_Vol[idx] = ADC_GetInjectedConversionValue(ADC1, ADC_InjectedChannel_3);
 		U_Bus[idx] = RegularConvData_Tab[0];
 		idx++;
+#endif
 		Motor.PhaseCnt++;		//步进一次，换相一次
 		Sysvariable.DelayTime30=TIM2->CNT; //过零点时间间隔，从0到一次换相的时间，就是一个过零点的时间间隔
 		Startup_Turn(); //换向
@@ -209,15 +219,6 @@ void StartupDrag(void)
 	}
 	if(Sysvariable.ChangeTime_Count == ((uint16_t)ACC_FUN(Sysvariable.ChangeCount, P1, P2, P3, P4)))	//换相条件
 	{
-		if(Sysvariable.ChangeCount > 46)
-		{
-			Sysvariable.ChangeCount = 0;
-			
-			All_Discharg();		//后面记得删，调试用
-			EnterRunInit();
-			idx = 0;
-			return;
-		} 
 		ChangeTimeArray[idx] = Sysvariable.ChangeTime_Count;
 		U_Vol[idx] = ADC_GetInjectedConversionValue(ADC1, ADC_InjectedChannel_1);
 		idx++;
@@ -228,40 +229,49 @@ void StartupDrag(void)
 		TIM2->CNT = 0;
 		Sysvariable.DelayTime30=Sysvariable.DelayTime30/2;
 		Startup_Turn(); //换向
+		if(Sysvariable.ChangeCount > 45)
+		{
+			Sysvariable.ChangeCount = 0;
+			
+			//All_Discharg();		//后面记得删，调试用
+			EnterRunInit();
+			idx = 0;
+			return;
+		} 
 	}
 
 }
 void Change_Voltage(void)		//不太对，因为每次换相时才会进入一次这个函数，所以不需要给区间
 {
-	if(Sysvariable.ChangeTime_Count >= 20 && Sysvariable.ChangeTime_Count < 71)
+	if(Sysvariable.ChangeTime_Count >= 17 && Sysvariable.ChangeTime_Count < 70)
 	{
 		Motor.Duty = PWM_ARR * 144 / 1000;		//14.4%
 	}
-	if(Sysvariable.ChangeTime_Count >= 71 && Sysvariable.ChangeTime_Count < 118)
+	if(Sysvariable.ChangeTime_Count >= 70 && Sysvariable.ChangeTime_Count < 118)
 	{
 		Motor.Duty = PWM_ARR * 152 / 1000;		//15.2%
 	}
-	if(Sysvariable.ChangeTime_Count >= 118 && Sysvariable.ChangeTime_Count < 173)
+	if(Sysvariable.ChangeTime_Count >= 118 && Sysvariable.ChangeTime_Count < 174)
 	{
 		Motor.Duty = PWM_ARR * 162 / 1000;		//16.2%
 	}
-	if(Sysvariable.ChangeTime_Count >= 173 && Sysvariable.ChangeTime_Count < 222)
+	if(Sysvariable.ChangeTime_Count >= 174 && Sysvariable.ChangeTime_Count < 226)
 	{
 		Motor.Duty = PWM_ARR * 178 / 1000;		//17.8%
 	}
-	if(Sysvariable.ChangeTime_Count >= 222 && Sysvariable.ChangeTime_Count < 267)
+	if(Sysvariable.ChangeTime_Count >= 226 && Sysvariable.ChangeTime_Count < 271)
 	{
 		Motor.Duty = PWM_ARR * 199 / 1000;		//19.9%
 	}
-	if(Sysvariable.ChangeTime_Count >= 267 && Sysvariable.ChangeTime_Count < 315)
+	if(Sysvariable.ChangeTime_Count >= 271 && Sysvariable.ChangeTime_Count < 317)
 	{
 		Motor.Duty = PWM_ARR * 232 / 1000;		//23.2%
 	}
-	if(Sysvariable.ChangeTime_Count >= 315 && Sysvariable.ChangeTime_Count < 370)
+	if(Sysvariable.ChangeTime_Count >= 317 && Sysvariable.ChangeTime_Count < 370)
 	{
 		Motor.Duty = PWM_ARR * 270 / 1000;		//27.0%
 	}
-	if(Sysvariable.ChangeTime_Count >= 370 && Sysvariable.ChangeTime_Count < 418)
+	if(Sysvariable.ChangeTime_Count >= 370 && Sysvariable.ChangeTime_Count < 416)
 	{
 		Motor.Duty = PWM_ARR * 301 / 1000;		//29.6%
 	}
@@ -415,7 +425,7 @@ void MotorControl(void)
 			  break;
 			
 		case mcRun:	//运行
-			 SpeedController();		//占空比控制，可开环，可闭环，源代码是开环，后面可以换一下闭环
+			//  SpeedController();		//这里应该放到定时器中断中，主程序中应该是控制目标转速
 			 break;
 									
 		case mcReset:	// 电机立即重启
@@ -532,6 +542,23 @@ void UserSpeedControl(void)
 					{
 						RheostatCnt0=0;
 						UserRequireSpeed=Motor_UserSpeed;
+#if SHF_TEST
+						if((Motor.motor_speed+MOTOR_ACC_DELTA_SPEED) < UserRequireSpeed)
+						{
+							Motor.motor_speed += MOTOR_ACC_DELTA_SPEED;                       ////每毫秒增加5         这个加的挺快的  1秒钟10转的话，1毫秒就是0.01转
+						}
+						else
+						{
+							Motor.motor_speed = UserRequireSpeed;
+						}
+						
+						if(Motor.motor_speed > Motor_MAX_SPEED)
+						{
+							Motor.motor_speed = Motor_MAX_SPEED;
+						}
+					
+						bldc_pid.SetPoint = Motor.motor_speed; 
+#endif
 					}	
 				}
 				else

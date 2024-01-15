@@ -73,6 +73,7 @@ typedef struct
 	  unsigned Angle_Mask :1;
 	  unsigned ChangePhase :1;
 	  unsigned flag_SpeedTime:1;
+	  unsigned SwapFlag :1;
 }sysflag;
 
 typedef struct {

@@ -8,6 +8,8 @@
 
  void bldcSpeedControlTime(int32_t Idle_SpeedValue,int32_t Actual_SpeedValue);  //速度环
 
+__IO uint16_t Limit_speed_duty = 300; //低速启动限制占空比
+
 PIDCONTROL   PID_Speed = {	0.01,                                                 /* p设置为10                    */
 							0.005,                                                   /* i设置为3                     */
 							0,                                                     /* d设置为0                     */
@@ -52,7 +54,7 @@ void CalcAvgSpeedTime(void)
 }
 /*****************************************************************************
  函 数 名  : CalcSpeedTime
- 功能描述  : 计算时间[60度]
+ 功能描述  : 计算时间[60度]		还没做补偿
  输入参数  : 无
  输出参数  : void
 *****************************************************************************/
@@ -63,11 +65,12 @@ void CalcAvgSpeedTime(void)
 	TIM3->CR1|=0x0001;       //打开定时器
 	TIM3->CNT = 0;
 	
-	Sysvariable.SpeedTimeTemp=TIM2->CNT; //过零点时间间隔  60°  把TIM2的计数值记录一下  1us一个脉冲	//可能还是要改成1s，
+	Sysvariable.SpeedTimeTemp=TIM2->CNT; //过零点时间间隔  60°  把TIM2的计数值记录一下  1us一个脉冲
 	TIM2->CNT = 0;
 	
 	Sysvariable.DelayTime30=(uint16_t)(Sysvariable.SpeedTimeTemp/2); 
 	Sysvariable.SpeedTime=Sysvariable.SpeedTimeTemp;
+	Sysvariable.LastDragTime = Sysvariable.SpeedTimeTemp;
 	sysflags.ChangePhase=1; //开始换向		到这只是给了个标志位，还没计时完，等定时中断到了才换相
 }
 /*****************************************************************************
@@ -76,85 +79,105 @@ void CalcAvgSpeedTime(void)
  输入参数  : 无
  输出参数  : void
 *****************************************************************************/
+#if SHF_TEST
+PID bldc_pid;
+void IncPIDInit(void) 
+{
+	Motor.motor_speed   = Motor.Duty * 16 / 30 ;
+	bldc_pid.LastError  = 0;                    //Error[-1]
+	bldc_pid.PrevError  = 0;                    //Error[-2]
+	bldc_pid.Proportion = P_DATA_ACC;              //比例常数 Proportional Const
+	bldc_pid.Integral   = I_DATA_ACC;                //积分常数  Integral Const
+	bldc_pid.Derivative = D_DATA_ACC;              //微分常数 Derivative Const
+	bldc_pid.SetPoint   = Motor.motor_speed;		//设定目标Desired Value     刚才已经设为100了
+}
+
+int IncPIDCalc(int NextPoint) 
+{
+    int iError,iIncpid;                                       //当前误差
+    
+    iError = bldc_pid.SetPoint - NextPoint;                     //增量计算
+    iIncpid = (int)((bldc_pid.Proportion * iError)             /*E[k]项*/\
+                -(bldc_pid.Integral * bldc_pid.LastError)     /*E[k-1]项*/\
+                +(bldc_pid.Derivative * bldc_pid.PrevError));  /*E[k-2]*/
+                
+    bldc_pid.PrevError = bldc_pid.LastError;                    //存储误差，用于下次计算
+    bldc_pid.LastError = iError;
+    
+    return(iIncpid);                                    //返回增量值
+}
+
+void SpeedController(void)			
+{
+	if(mcState == mcRun)
+	{
+		TuneDutyRatioCnt ++;	
+		if(TuneDutyRatioCnt >= SPEEDLOOPCNT)	// 速度环	50ms调整一次
+		{
+			static uint16_t temp;
+			static uint16_t DutyInc;
+			int pid_result;
+
+			if(sysflags.SwapFlag == 0)
+			{
+				temp = Motor.Duty * 16 / 30;	//占空比和速度间的转换
+				sysflags.SwapFlag = 1;
+			}
+			else
+			{
+				temp = (Motor.step_counter + Motor.step_counter_prev) * 25;		//与前50ms的值取均值，temp值就是当前速度值
+			}
+			Motor.ActualSpeed = temp;
+
+			bldc_pid.SetPoint = Motor.motor_speed;		//motor_speed是一直在变的，1ms变一次，也就是说每次motor_speed加50
+
+			pid_result = IncPIDCalc(temp);
+			pid_result = pid_result * 30 / 16;		//占空比和速度的一个转换，转速（0~1600），占空比（0~3000）
+			DutyInc = pid_result;
+		
+			if((pid_result + Motor.Duty) < MOTOR_MIN_DUTY_SPEED)
+			{
+				Motor.Duty = MOTOR_MIN_DUTY_SPEED;        //占空比最小120
+			}
+			else if((pid_result + Motor.Duty) > MOTOR_MAX_DUTY_SPEED)//950->600
+			{
+				Motor.Duty = MOTOR_MAX_DUTY_SPEED;      //最大占空比
+			}
+			else
+			{            
+				Motor.Duty += pid_result;  
+				if(temp <= 100)                 ///在转速比较低的情况下，如果输出的占空比又比较大的话，造成电机受不了的
+				{
+					if(Motor.Duty >= Limit_speed_duty)         
+					{
+						Motor.Duty = Limit_speed_duty;
+					}
+				}
+			}
+
+			TuneDutyRatioCnt = 0;
+			Motor.step_counter_prev = Motor.step_counter;
+			Motor.step_counter = 0;
+		}
+	}
+}
+
+#else
  void SpeedController(void)
 {	
-	if(	Motor.ControlMode ==CLOSED_SPEEDLOOP_Halless) //闭环运行
+	if(mcState == mcRun)
 	{
+		TuneDutyRatioCnt ++;	
 		if(TuneDutyRatioCnt >= SPEEDLOOPCNT)	// 速度环	10ms调整一次
 		{
 			TuneDutyRatioCnt = 0;
 			Motor.Last_Speed = SPEEDFACTOR / Sysvariable.SpeedTime;   //60°/60°时间
-			//FirstOrder_LPF_Cacl(Motor.Last_Speed,Motor.ActualSpeed,0.06);		//用的硬件滤波
-			//bldcSpeedControlTime(UserRequireSpeed,Motor.ActualSpeed);
-			bldcSpeedControlTime(UserRequireSpeed,Motor.Last_Speed);
+			FirstOrder_LPF_Cacl(Motor.Last_Speed,Motor.ActualSpeed,0.06);		//用的硬件滤波
+			bldcSpeedControlTime(UserRequireSpeed,Motor.ActualSpeed);
+			// bldcSpeedControlTime(UserRequireSpeed,Motor.Last_Speed);
 		}
 	}
 
-  else//开环运行
-  {
-		  if(TuneDutyRatioCnt >= SPEEDLOOPCNT)	
-			{
-				 TuneDutyRatioCnt = 0;
-				 Motor.StepNum++;
-				 Motor.Last_Speed = SPEEDFACTOR / Sysvariable.SpeedTime;
-
-				 FirstOrder_LPF_Cacl(Motor.Last_Speed,Motor.ActualSpeed,0.06);
-		  	 if(Motor.Duty < PWM_MIN_DUTY)
-				 {
-					 
-					  if(Motor.StepNum>LOW_DUTY_COUNT)
-						{
-							 Motor.StepNum=0;
-						   Motor.Duty += ADD_DUTY1;		//小于最小占空比时，占空比每两步+1			 
-					  }
-				 }
-			   else
-				 {
-					if(Motor.Duty < UserRequireSpeed)		//小于最大占空比 1500
-					{
-						if(Motor.Duty<=DUTYTHRESHOLD1)		//小于0.5*最大占空比
-						{
-							if(Motor.StepNum>LOW_DUTY_COUNT)
-							{
-								 Motor.StepNum=0;
-								 Motor.Duty += ADD_DUTY1;	//占空比每两步+1		 
-							}
-						}
-						else if(Motor.Duty<DUTYTHRESHOLD2)		//小于0.7*最大占空比
-						{
-							if(Motor.StepNum>HIGH_DUTY_COUNT)
-					   	{
-							 Motor.StepNum=0;
-						   Motor.Duty += ADD_DUTY2;			//	占空比每两步+2	 
-						  }
-						}
-						else
-						{
-							if(Motor.StepNum>HIGH_DUTY_COUNT)
-						  {
-								 Motor.StepNum=0;
-								 Motor.Duty += ADD_DUTY3;		//	占空比每两步+3		 
-						  }
-						}
-					}
-					else if(Motor.Duty  > UserRequireSpeed)		//大于最大占空比
-					{
-						Motor.Duty -= ADD_DUTY2;
-						Motor.StepNum=0;
-
-					} 
-
-				}
-			}
-			if(Motor.Duty <= MIN_DUTY)	// 限制输出占空比的最大最小值
-			{
-				Motor.Duty = MIN_DUTY;
-			}
-			else if(Motor.Duty >= MAX_DUTY)
-			{
-				Motor.Duty = MAX_DUTY;
-			}
-	}
 }
 /*****************************************************************************
  函 数 名  : bldcSpeedControlTime
@@ -194,6 +217,7 @@ void bldcSpeedControlTime(int32_t Idle_SpeedValue,int32_t Actual_SpeedValue)
     }
 		Motor.Duty=PID_Speed.Out; 
 }
+#endif
 
 
 
