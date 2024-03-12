@@ -22,6 +22,7 @@
   **************************************************/
   
 
+
 int main(void)
 {
  
@@ -102,7 +103,6 @@ int main(void)
 					Cal_AverCurrent();	
 					//Fault_Detection();  
 					Angle_Dealwith();
-					UserSpeedControl();
 				}
 				break;
 			default:

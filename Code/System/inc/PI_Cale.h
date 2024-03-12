@@ -38,7 +38,11 @@
 /*************************************/
 #define  P_DATA_ACC                   0.4 //0.7              //加速P参数  0.35
 #define  I_DATA_ACC                   0.05//0.04        //I参数 0.03
-#define  D_DATA_ACC                   0                 //D参数
+#define  D_DATA_ACC                   0                 //D参数、
+
+#define  P_DATA_DEC                   0.8               //减速P参数  0.35
+#define  I_DATA_DEC                   0.01//0.06        //I参数 0.03
+#define  D_DATA_DEC                   0                 //D参数
 
 /*********************************************************************************************************
   电机PID控制结构体
@@ -75,6 +79,7 @@ extern   float  Speed;
 extern  uint8_t  Enable_Times;
 void     PID_init(void);
 extern  PID bldc_pid;
+extern   void ErrorCorrection(void);
 extern   void CalcSpeedTime(void);
 extern  void bldcCalcSpeed(void);
 extern  void SpeedController(void);

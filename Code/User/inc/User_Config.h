@@ -2,6 +2,10 @@
 #define   _User_Config_H
 
 #include "SysConfig.h"
+// #include "BLDC.h"
+#include <math.h>
+
+#define PI acos(-1)
 
 
 //PWM周期    向上计数
@@ -29,10 +33,16 @@
 #define   PWM_ADJ          (100)      //16->1
 // #define   TIM3_Prescaler   (48)
 //启动
-#define ALIGNMENTNMS      (0)                 // 定位时间 
+#define ALIGNMENTNMS      (35)                 // 定位时间 
+#if (EMPTY_LOAD == 1)
 #define ALIGNMENTDUTY     (360)               // 定位力矩   0.01-0.1   100->360
 #define BeforDragDuty         (360)
 #define BeforDragTimes         (35)
+#else
+#define ALIGNMENTDUTY     (450)               // 定位力矩   0.01-0.1   100->360
+#define BeforDragDuty         (450)
+#define BeforDragTimes         (35)
+#endif
  
 #define RAMP_TIM_STA      (35)              //  爬坡开始步进时间 // 原本200  数值越小启动较快  ，容易过流  <100,100时会反转 50有点卡顿
 #define RAMP_TIM_END      (8)               //  爬坡结束步进时间 30 根据负载调  如果带载  这个值适当大点
@@ -46,9 +56,9 @@
  
  
  //电感法
-#define Lock_Duty        1200       //脉冲duty
-#define LongPulse_Time   10        //充电时间      10->100
-#define ShortPulse_Time  5          //脉冲时间      应该怎么算？ 目前是4次中断时间
+#define Lock_Duty        1500       //脉冲duty
+#define LongPulse_Time   6        //充电时间      10->20
+#define ShortPulse_Time  3          //脉冲时间      应该怎么算？ 目前是4次中断时间  5->10
 
  //续流屏蔽和换相时间补偿
  #define  Low_DutyMask_Time         (2)     //低占空比续流屏蔽时间   运行过程中无故硬件过流  调整该值
@@ -104,19 +114,25 @@
 #define   CLOSED_SPEEDLOOP_Halless   (2)        // 2：速度闭环
 #define   Control_Mode  (CLOSED_SPEEDLOOP_Halless)    //模式选择    //原来是OPEN_LOOP_Halless
 
-// #define  Motor_MinSpeed    (6000)
-// #define  Motor_MaxSpeed    (22000)
-// #define  Motor_UserSpeed   (19000)
 
-#define  Motor_MinSpeed    (100)
-#define  Motor_MaxSpeed    (500)
-#define  Motor_UserSpeed   (500)
-#define  Motor_MAX_SPEED   (1600)
+/*-------------用户参数设置---------------------*/
+//运行速度
+#define  Motor_UserSpeed   (300)        //设定速度
+#define  Motor_MAX_SPEED   (600)
 #define	 Motor_MIN_SPEED   (100)
-
-#define  MOTOR_MIN_DUTY_SPEED       (300)
-#define  MOTOR_MAX_DUTY_SPEED       (1200)
-#define  MOTOR_ACC_DELTA_SPEED		(1)	
+//运行时间
+#define	 Motor_Run_Time   (60)         //单位：10ms
+//减速时间
+#define	 Motor_Dec_Time   1500         //单位：ms
+//运行占空比
+#define  MOTOR_DEC_MIN_DUTY_SPEED   (300)
+#define  MOTOR_MIN_DUTY_SPEED       (360)
+#define  MOTOR_MAX_DUTY_SPEED       (1500)
+#define  MOTOR_ACC_DELTA_SPEED		(5)	
+#define  MOTOR_DEC_DELTA_SPEED		(3)     
+//切换到闭环的换相次数
+#define  Motor_Start_ChangeCount    (5)
+#define  M_TIMER_BASE               (10)
 /*-------------------硬件参数--------------------*/
 //母线电压采样
 // #define RV_BUS_1      (68.0)         //单位KΩ 分压电阻    Y
@@ -133,14 +149,23 @@
 #define  AMP_GAIN     (RI_BUS_1/RI_BUS_2+1)
 #define CURRENT_COFF  (3.3/(4095*AMP_GAIN*Rs))         //电流计算系数  0.0248
 //电机参数设定
-// #define POLE_PAIR     (2)         //单位* 电机极对数         Y
+#define POLE_PAIR     (4)         //单位* 电机极对数         Y
+//滤波系数
+#define RC              (0.00009524)      //(R1*R2*C1)/(R1+R2)
+#define DELAYFACTOR     (0.000039894)    //((2*PI * POLE_PAIR * RC ) / 60)
 // #define BASE_VOLTAGE  (36)        //单位V 电机额定电压       Y
 // #define BASE_SPEED    (20000)     //单位rpm 电机额定转速*1.5 Y
-//转速计算因子
-#define  SPEEDFACTOR	(2500000)//(60 * SYS_CLK / (6 * POLE_PAIR * TIM2_Prescaler) )=1000 0000/POLE_PAIR// 计算转速的系数  5000000->2500000
-
+//转速计算因子-----T法测速
+#define  SPEEDFACTOR	(2500000)//(60 * SYS_CLK / (6 * POLE_PAIR * TIM2_Prescaler))=(60*(SYS_CLK/TIM2_Prescaler))/6 * POLE_PAIR// 计算转速的系数  5000000->2500000
+//转速计算因子-----M法测速
+// #degine  SPEEDFACTOR_M  ()//60/6 * POLE_PAIR
 #define SHF_TEST 1  
+#define SHF_TEST_START 1
+#define SHF_TEST_SPEED 1
 #define SHF_TEST2 0     
+#define SHF_TEST3 1   
+#define MOTOR_BRAKE_ENABLE 	0//1为启用刹车功能
+#define PULSE_INJECTION 	1
 
 #endif
 

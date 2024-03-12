@@ -18,11 +18,16 @@ uint16_t  ADC_Sum_buf[6]={0};
 uint8_t  Initial_stage=0;
 uint8_t  PhaseCnt=0;
 uint8_t  pos_idx=0;
+uint8_t  charger_idx=0;
 uint8_t  Flag_adc=0;
 uint8_t  Charger_Time=0;
 uint8_t  Flag_Charger=0;
 uint8_t  Flag_OverCurr=0;
+uint8_t  Flag_Alignment=0;
 uint16_t  test_idx=0;
+static uint16_t curr_test[6][60] = {0};
+uint16_t i = 0;
+uint16_t j = 0;
 
 
 BLDC Motor={                                                          /* µç»ú½á¹¹Ìå        */
@@ -68,6 +73,7 @@ void Sys_Variable_Init(void)
 	Motor.NextPhase=0;
 	Motor.ActualSpeed=0;
 	Motor.Last_Speed=0;
+	Motor.Duty = Lock_Duty;
 	
 	UserRequireSpeed = 0;	//
 	PID_Speed.Purpose = INIT_PURPOSE;
@@ -77,6 +83,7 @@ void Sys_Variable_Init(void)
 	Flag_Charger=0;
 	Flag_adc=0;
 	Flag_OverCurr=0;
+	Flag_Alignment=0;
 	pos_idx=0;
 	pos_check_stage=0;
 	// TIM_CCxCmd(TIM1, TIM_Channel_1, TIM_CCx_Enable); //Ê¹ÄÜÉÏ¹Ü
@@ -87,7 +94,8 @@ void Sys_Variable_Init(void)
 	// GPIO_SetBits(GPIOB, W_Mos_L_Pin);
 	// GPIO_SetBits(GPIOB, V_Mos_L_Pin); 
 	Start_Motor();
-	 
+
+	// Motor.Duty = Lock_Duty ;  //¶ÔÆëÕ¼¿Õ±È		Õ¼¿Õ±È100 
 	mcState = mcAlignment;
 	mcFault=RunNormal;
  }
@@ -119,6 +127,24 @@ void MotorAlignment(void)		//Ã»ÓÃµ½
 	Sysvariable.DragTime = RAMP_TIM_STA;
 	mcState =  mcDrag; //³õÊ¼»¯Íê³É   ½øÈë¼ÓËÙ
 	Sysvariable.ChangeTime_Count = 0;
+	// Motor.motorRunTime = (u32)(M_TIMER_BASE * Motor_Run_Time + Motor_UserSpeed * 5);
+	Motor.motorRunTime = (u32)(M_TIMER_BASE * Motor_Run_Time);	//Motor_Run_Time¸ö10ms
+
+	//Î»ÒÆ¼ÆËã
+	Sysvariable.ChangeCount_Dec = (uint32_t)(Motor_UserSpeed * Motor_Run_Time * 24 / 6000 + 0.5);
+	Sysvariable.ChangeCount_Stop = (uint32_t)(Sysvariable.ChangeCount_Dec + (Motor_UserSpeed/6) * 0.9 - 18 + 0.5);
+	if (Sysvariable.ChangeCount_Stop < Sysvariable.ChangeCount_Dec)
+	{
+		Sysvariable.ChangeCount_Stop = Sysvariable.ChangeCount_Dec;
+	}
+	// Motor.PhaseCnt++;
+	// if(Motor.PhaseCnt > 6) {
+	// 	Motor.PhaseCnt = 1;
+	// }
+	// if(Motor.PhaseCnt < 1) {
+	// 	Motor.PhaseCnt = 6;
+	// } 	
+	// Startup_Turn();
           
 	Sysvariable.ChangeCount = 1;
 	TIM_Cmd(TIM2, ENABLE);			
@@ -134,11 +160,13 @@ void EnterRunInit(void)
 	Sysvariable.ADCTimeCnt = 0;
 	Sysvariable.Timer3OutCnt = 0;
 	Sysvariable.BlankingCnt = 0;
+	Sysvariable.CorrectionTime = 0;
 	sysflags.ChangePhase=0;
 	sysflags.Angle_Mask=0;
 	sysflags.SwapFlag = 0;
 	TuneDutyRatioCnt=0;
-	Sysvariable.LastDragTime = Sysvariable.DelayTime30 * 2;
+	Sysvariable.SpeedTime = Sysvariable.DelayTime30 * 2;
+
 	// Motor.PhaseCnt++;
 	// if(Motor.PhaseCnt > 6) {
 	// 	Motor.PhaseCnt = 1;
@@ -146,8 +174,8 @@ void EnterRunInit(void)
 	// if(Motor.PhaseCnt < 1) {
 	// 	Motor.PhaseCnt = 6;
 	// } 
-	//Startup_Turn(); //Ç¿ÖÆ»»Ïò
-#if SHF_TEST
+	// Startup_Turn(); //Ç¿ÖÆ»»Ïò
+#if SHF_TEST_SPEED
 	IncPIDInit();
 #endif
 	mcState = mcRun;
@@ -222,18 +250,22 @@ void StartupDrag(void)
 		ChangeTimeArray[idx] = Sysvariable.ChangeTime_Count;
 		U_Vol[idx] = ADC_GetInjectedConversionValue(ADC1, ADC_InjectedChannel_1);
 		idx++;
-		Sysvariable.ChangeCount++;		//»»Ïà´ÎÊý£º0~47
+		Sysvariable.ChangeCount++;		//»»Ïà´ÎÊý
 		Change_Voltage();
 		Motor.PhaseCnt++;
 		Sysvariable.DelayTime30=TIM2->CNT;
 		TIM2->CNT = 0;
+		Motor.ActualSpeed = SPEEDFACTOR / Sysvariable.DelayTime30;
 		Sysvariable.DelayTime30=Sysvariable.DelayTime30/2;
 		Startup_Turn(); //»»Ïò
+#if EMPTY_LOAD
 		if(Sysvariable.ChangeCount > 45)
+#else
+		if(Sysvariable.ChangeCount >= Motor_Start_ChangeCount)
+#endif
 		{
-			Sysvariable.ChangeCount = 0;
-			
-			//All_Discharg();		//ºóÃæ¼ÇµÃÉ¾£¬µ÷ÊÔÓÃ
+			// Sysvariable.ChangeCount = 0;
+			All_Discharg();		//ºóÃæ¼ÇµÃÉ¾£¬µ÷ÊÔÓÃ
 			EnterRunInit();
 			idx = 0;
 			return;
@@ -241,6 +273,7 @@ void StartupDrag(void)
 	}
 
 }
+#if EMPTY_LOAD
 void Change_Voltage(void)		//²»Ì«¶Ô£¬ÒòÎªÃ¿´Î»»ÏàÊ±²Å»á½øÈëÒ»´ÎÕâ¸öº¯Êý£¬ËùÒÔ²»ÐèÒª¸øÇø¼ä
 {
 	if(Sysvariable.ChangeTime_Count >= 17 && Sysvariable.ChangeTime_Count < 70)
@@ -291,57 +324,250 @@ void Change_Voltage(void)		//²»Ì«¶Ô£¬ÒòÎªÃ¿´Î»»ÏàÊ±²Å»á½øÈëÒ»´ÎÕâ¸öº¯Êý£¬ËùÒÔ²»Ð
 	{
 		Motor.Duty = PWM_ARR * 411 / 1000;		//29.6%
 	}
-
-	// if(Sysvariable.ChangeCount >= 17 && Sysvariable.ChangeCount < 70)
-	// {
-	// 	Motor.Duty = PWM_ARR * 144 / 1000;		//14.4%
-	// }
-	// if(Sysvariable.ChangeCount >= 70 && Sysvariable.ChangeCount < 118)
-	// {
-	// 	Motor.Duty = PWM_ARR * 152 / 1000;		//15.2%
-	// }
-	// if(Sysvariable.ChangeCount >= 118 && Sysvariable.ChangeCount < 174)
-	// {
-	// 	Motor.Duty = PWM_ARR * 162 / 1000;		//16.2%
-	// }
-	// if(Sysvariable.ChangeCount >= 174 && Sysvariable.ChangeCount < 226)
-	// {
-	// 	Motor.Duty = PWM_ARR * 178 / 1000;		//17.8%
-	// }
-	// if(Sysvariable.ChangeCount >= 226 && Sysvariable.ChangeCount < 271)
-	// {
-	// 	Motor.Duty = PWM_ARR * 199 / 1000;		//19.9%
-	// }
-	// if(Sysvariable.ChangeCount >= 271 && Sysvariable.ChangeCount < 317)
-	// {
-	// 	Motor.Duty = PWM_ARR * 232 / 1000;		//23.2%
-	// }
-	// if(Sysvariable.ChangeCount >= 317 && Sysvariable.ChangeCount < 370)
-	// {
-	// 	Motor.Duty = PWM_ARR * 270 / 1000;		//27.0%
-	// }
-	// if(Sysvariable.ChangeCount >= 370 && Sysvariable.ChangeCount < 416)
-	// {
-	// 	Motor.Duty = PWM_ARR * 301 / 1000;		//29.6%
-	// }
-	// if(Sysvariable.ChangeCount >= 416 && Sysvariable.ChangeCount < 467)
-	// {
-	// 	Motor.Duty = PWM_ARR * 333 / 1000;		//29.6%
-	// }
-	// if(Sysvariable.ChangeCount >= 467 && Sysvariable.ChangeCount < 519)
-	// {
-	// 	Motor.Duty = PWM_ARR * 365 / 1000;		//29.6%
-	// }
-	// if(Sysvariable.ChangeCount >= 519 && Sysvariable.ChangeCount < 570)
-	// {
-	// 	Motor.Duty = PWM_ARR * 391 / 1000;		//29.6%
-	// }
-	// if(Sysvariable.ChangeCount >= 570 && Sysvariable.ChangeCount < 618)
-	// {
-	// 	Motor.Duty = PWM_ARR * 411 / 1000;		//29.6%
-	// }
+}
+#else
+void Change_Voltage(void)		//²»Ì«¶Ô£¬ÒòÎªÃ¿´Î»»ÏàÊ±²Å»á½øÈëÒ»´ÎÕâ¸öº¯Êý£¬ËùÒÔ²»ÐèÒª¸øÇø¼ä
+{
+	if(Sysvariable.ChangeTime_Count >= 0 && Sysvariable.ChangeTime_Count < 52)
+	{
+		Motor.Duty = PWM_ARR * 150 / 1000;		//14.4%
+	}
+	if(Sysvariable.ChangeTime_Count >= 52 && Sysvariable.ChangeTime_Count < 105)
+	{
+		Motor.Duty = PWM_ARR * 176 / 1000;		//14.4%
+	}
+	if(Sysvariable.ChangeTime_Count >= 105 && Sysvariable.ChangeTime_Count < 149)
+	{
+		Motor.Duty = PWM_ARR * 202 / 1000;		//15.2%
+	}
+	if(Sysvariable.ChangeTime_Count >= 149 && Sysvariable.ChangeTime_Count < 197)
+	{
+		Motor.Duty = PWM_ARR * 235 / 1000;		//16.2%
+	}
+	if(Sysvariable.ChangeTime_Count >= 197 && Sysvariable.ChangeTime_Count < 252)
+	{
+		Motor.Duty = PWM_ARR * 273 / 1000;		//17.8%
+	}
+	if(Sysvariable.ChangeTime_Count >= 252 && Sysvariable.ChangeTime_Count < 297)
+	{
+		Motor.Duty = PWM_ARR * 304 / 1000;		//19.9%
+	}
+	if(Sysvariable.ChangeTime_Count >= 297 && Sysvariable.ChangeTime_Count < 348)
+	{
+		Motor.Duty = PWM_ARR * 336 / 1000;		//23.2%
+	}
+	if(Sysvariable.ChangeTime_Count >= 348 && Sysvariable.ChangeTime_Count < 395)
+	{
+		Motor.Duty = PWM_ARR * 348 / 1000;		//27.0%
+	}
 }
 #endif
+#endif
+
+/*****************************************************************************
+ º¯ Êý Ãû  : MotorControl
+ ¹¦ÄÜÃèÊö  : µç»ú¿ØÖÆ
+ ÊäÈë²ÎÊý  : ÎÞ
+ Êä³ö²ÎÊý  : void
+*****************************************************************************/
+void MotorControl(void)
+{
+	switch(mcState)
+	{
+		case mcInit:	// ³õÊ¼»¯
+			MotorInit();
+			Sys_Variable_Init();	
+			break;
+			
+		case mcAlignment:	// ¶¨Î»
+			if(Flag_Alignment == 1)
+			{
+				Flag_Alignment = 0;
+				Align_pos_check_proc();
+			}
+		   	break;
+			
+		case mcDrag:	// Ç¿ÍÏ				
+			  break;
+			
+		case mcRun:	//ÔËÐÐ
+			AccSpeedControl();
+			// SpeedController();		//ÕâÀïÓ¦¸Ã·Åµ½¶¨Ê±Æ÷ÖÐ¶ÏÖÐ£¬Ö÷³ÌÐòÖÐÓ¦¸ÃÊÇ¿ØÖÆÄ¿±ê×ªËÙ
+			break;
+
+		case mcDec:
+			DecSpeedControl();
+			break;
+			
+		case mcStop:	// µç»úÍ£Ö¹
+		  	MotorStop();
+			break;
+
+		case mcStopNext:	// ²ÉÓÃÈýÏÂ¹Üµ¼Í¨É²³µÄ£Ê½
+			MotorStopNext();
+			break;
+
+		case mcStopNext2:	// ²ÉÓÃÈýÏÂ¹Üµ¼Í¨É²³µÄ£Ê½
+			MotorStopNext2();
+			break;	
+			
+		default:
+			MotorStop();
+			break;			
+	}
+}
+/*****************************************************************************
+ º¯ Êý Ãû  : AccSpeedControl
+ ¹¦ÄÜÃèÊö  : ¼ÓËÙµ÷ËÙ¿ØÖÆ
+ ÊäÈë²ÎÊý  : ÎÞ
+ Êä³ö²ÎÊý  : void
+*****************************************************************************/
+void AccSpeedControl(void)
+{
+	// if((0 == gs_Motor_Param.dwMotorRunTimer) || (g_Motor_Hall_Count >= g_Motor_Hall_Count_Dec) )//ÔËÐÐÊ±¼ä½áÊø
+	// if((Motor.motorRunTime == 0) || Sysvariable.ChangeCount >= Sysvariable.ChangeCount_Dec)	//ÔËÐÐÊ±¼ä½áÊø
+	
+	if(Motor.motorRunTime == 0)
+	{
+		static u16 testCount;
+		testCount = (u16)Sysvariable.ChangeCount;
+		mcState = mcDec;
+		Motor.motorRunTime = Motor_Dec_Time;               ////ÕâÀïÊÇ150ms
+	} 
+	else
+	{
+		if((Motor.motor_speed + MOTOR_ACC_DELTA_SPEED) < Motor_UserSpeed)
+		{
+			Motor.motor_speed += MOTOR_ACC_DELTA_SPEED;                       ////Ã¿ºÁÃëÔö¼Ó5         Õâ¸ö¼ÓµÄÍ¦¿ìµÄ  1ÃëÖÓ10×ªµÄ»°£¬1ºÁÃë¾ÍÊÇ0.01×ª
+		}
+		else
+		{
+			Motor.motor_speed = Motor_UserSpeed;
+		}
+		
+		if(Motor.motor_speed > Motor_MAX_SPEED)
+		{
+			Motor.motor_speed = Motor_MAX_SPEED;
+		}				
+		bldc_pid.SetPoint = Motor.motor_speed;  
+	}
+}
+
+/*****************************************************************************
+ º¯ Êý Ãû  : DecSpeedControl
+ ¹¦ÄÜÃèÊö  : ¼õËÙµ÷ËÙ¿ØÖÆ
+ ÊäÈë²ÎÊý  : ÎÞ
+ Êä³ö²ÎÊý  : void
+*****************************************************************************/
+void DecSpeedControl(void)
+{
+	bldc_pid.Proportion = P_DATA_ACC;              //±ÈÀý³£Êý Proportional Const
+	bldc_pid.Integral   = I_DATA_ACC;                //»ý·Ö³£Êý  Integral Const
+	// if((gs_Motor_Param.dnMotor_NowSpeed <= MOTOR_MIN_SPEED) || (0 == gs_Motor_Param.dwMotorRunTimer) || (g_Motor_Hall_Count >= g_Motor_Hall_Count_Stop))
+	// if((Motor.ActualSpeed <= Motor_MIN_SPEED) || (Motor.motorRunTime == 0))	//¼õËÙÊ±¼äµ½ÁË
+	// if((Motor.motorRunTime == 0) || (Motor.ActualSpeed <= Motor_MIN_SPEED) || (Sysvariable.ChangeCount >= Sysvariable.ChangeCount_Stop))
+	if(Sysvariable.ChangeCount >= Sysvariable.ChangeCount_Dec)
+	{
+		Motor.motor_speed = Motor_MIN_SPEED;
+		mcState = mcStop;
+	}
+	else
+	{
+		if((Motor.motor_speed - MOTOR_DEC_DELTA_SPEED) >= Motor_MIN_SPEED)
+		{
+			Motor.motor_speed -= MOTOR_DEC_DELTA_SPEED;            
+		}
+		else
+		{
+			Motor.motor_speed = Motor_MIN_SPEED;
+		}		
+		bldc_pid.SetPoint = Motor.motor_speed;
+	}
+}
+/*****************************************************************************
+ º¯ Êý Ãû  : MotorStop
+ ¹¦ÄÜÃèÊö  : µç»úÍ£Ö¹
+ ÊäÈë²ÎÊý  : ÎÞ
+ Êä³ö²ÎÊý  : void
+*****************************************************************************/
+void MotorStop(void)
+{
+	Motor.Duty = 0;
+	Motor.PhaseCnt = 0;
+	TuneDutyRatioCnt=0;
+	Motor_PWM_IDLE();
+	Set_Motor_Stop_Delay(5);//ÉèÖÃÍ£»úÑÓÊ±5ms
+	mcState = mcStopNext;
+}
+void MotorStopNext(void)
+{
+	if(Sysvariable.StopDelayTime == 0)
+	{
+		Motor_PWM_IDLE();
+		mcState = mcStopNext2;
+		Set_Motor_Stop_Delay(100);//ÉèÖÃÍ£»úÑÓÊ±5ms
+	}
+}
+void MotorStopNext2(void)
+{
+	if(Sysvariable.StopDelayTime == 0)
+	{
+		// Motor_PWM_IDLE();
+		All_Discharg();
+	}
+}
+
+/**************ÉèÖÃÍ£»úÑÓÊ±********************************/
+void Set_Motor_Stop_Delay(uint32_t delay_time) 
+{
+    Sysvariable.StopDelayTime = delay_time;
+}
+/**************µç»úÍ£»úÑÓÊ±********************************/
+void Motor_Stop_Delay(void)
+{
+    if(Sysvariable.StopDelayTime > 0)     ///ÔÚ1ms¶¨Ê±Æ÷ÖÐµ÷ÓÃËü
+    {
+        Sysvariable.StopDelayTime--;
+    }
+}
+
+void MotorTimerDecrease(void)
+{
+	if(Motor.motorRunTime > 0)
+	{
+		Motor.motorRunTime--;
+	}
+}
+ 
+/*****************************************************************************
+ º¯ Êý Ãû  : UserSpeedControlInit
+ ¹¦ÄÜÃèÊö  : µ÷ËÙ¿ØÖÆ¿ªÊ¼
+ ÊäÈë²ÎÊý  : ÎÞ
+ Êä³ö²ÎÊý  : void
+*****************************************************************************/
+void UserSpeedControlInit(void)
+{
+	static uint8_t RheostatCnt0=0;
+	
+ if(ADJ_MODE==DIRECT_GIVE)
+ {
+		if(GPIO_ReadInputDataBit(GPIOB,GPIO_Pin_4)==0)		//°´¼üµÍµçÆ½Îª´ò¿ª
+		{
+			RheostatCnt0++;
+			if(RheostatCnt0>100)		//¼ì²âµ½100´ÎPF_1ÎªµÍµçÆ½£¬ÏµÍ³Æô¶¯£¬ËùÒÔPF¼ì²âµÄÊÇÊ²Ã´£¿£¿
+			{
+			RheostatCnt0=0;
+			sysflags.System_Start=1;
+			}	
+		}
+		else
+		{	
+			RheostatCnt0=0;
+			sysflags.System_Start=0;
+
+		}
+  }
+}
 /*****************************************************************************
  º¯ Êý Ãû  : Startup_Turn
  ¹¦ÄÜÃèÊö  : »»Ïà 
@@ -403,355 +629,71 @@ void Startup_Turn(void)
 		}
 		TIM_SetCompare4(BLDC_TIMx, Motor.Duty / 2); 
 }
-/*****************************************************************************
- º¯ Êý Ãû  : MotorControl
- ¹¦ÄÜÃèÊö  : µç»ú¿ØÖÆ
- ÊäÈë²ÎÊý  : ÎÞ
- Êä³ö²ÎÊý  : void
-*****************************************************************************/
-void MotorControl(void)
-{
-	switch(mcState)
-	{
-		case mcInit:	// ³õÊ¼»¯
-			MotorInit();
-			Sys_Variable_Init();	
-			break;
-			
-		case mcAlignment:	// ¶¨Î»
-		   	break;
-			
-		case mcDrag:	// Ç¿ÍÏ				
-			  break;
-			
-		case mcRun:	//ÔËÐÐ
-			//  SpeedController();		//ÕâÀïÓ¦¸Ã·Åµ½¶¨Ê±Æ÷ÖÐ¶ÏÖÐ£¬Ö÷³ÌÐòÖÐÓ¦¸ÃÊÇ¿ØÖÆÄ¿±ê×ªËÙ
-			 break;
-									
-		case mcReset:	// µç»úÁ¢¼´ÖØÆô
-			break;
-			
-		case mcStop:	// µç»úÍ£Ö¹£¬ÖØÐÂÉÏµç
-		  	 MotorStop();
-			break;
-			
-		default:
-			MotorStop();
-			break;			
-	}
-}
-/*****************************************************************************
- º¯ Êý Ãû  : MotorStop
- ¹¦ÄÜÃèÊö  : µç»úÍ£Ö¹
- ÊäÈë²ÎÊý  : ÎÞ
- Êä³ö²ÎÊý  : void
-*****************************************************************************/
-void MotorStop(void)
-{
-
-	mcState=mcStop;
-	Motor.Duty = 0;
-	Motor.PhaseCnt = 0;
-	TuneDutyRatioCnt=0;
-	TIM_SetCompare1(TIM1, 0);
-	TIM_SetCompare2(TIM1, 0);
-	TIM_SetCompare3(TIM1, 0);
-	TIM1->CCR1=0;
-	TIM1->CCR2=0;
-	TIM1->CCR3=0;
-	
-	TIM_CCxCmd(TIM1, TIM_Channel_1, TIM_CCx_Disable);
-	TIM_CCxCmd(TIM1, TIM_Channel_2, TIM_CCx_Disable);
-	TIM_CCxCmd(TIM1, TIM_Channel_3, TIM_CCx_Disable);
-	
- // TIM_Cmd(TIM14, DISABLE);    //Ê§ÄÜ¶¨Ê±Æ÷	 
-	TIM_Cmd(TIM2, DISABLE);    //Ê§ÄÜ¶¨Ê±Æ÷	 
-	TIM_SetCounter(TIM2,0);  //ÖØÐÂ¼ÆÊý
-	TIM_SetCounter(TIM3,0);  //ÖØÐÂ¼ÆÊý
-	
-	//LIN ÊäÈëÓëÊä³ö·´Ïò  ¹ÊÍ£Ö¹Ê± Ó¦¸ÃÉèÖÃÊäÈëµçÆ½Îª¸ß ÕâÑùÊä³öÎªµÍ--É²³µ
-	if(STOPMODE==BRAKEDOWN)
-	{
-		GPIO_ResetBits(GPIOB, U_Mos_L_Pin);
-		GPIO_ResetBits(GPIOB, W_Mos_L_Pin);	
-		GPIO_ResetBits(GPIOB, V_Mos_L_Pin); 
-		Delay_ms(300);
-		sysflags.Motor_Stop=1;
-				
-	////	//LIN ÊäÈëÓëÊä³ö·´Ïò  ¹ÊÍ£Ö¹Ê± Ó¦¸ÃÉèÖÃÊäÈëµçÆ½Îª¸ß ÕâÑùÊä³öÎªµÍ--×ÔÓÉÍ£
- 	}
-	if(STOPMODE==FREEDOWN)
-	{
-		GPIO_SetBits(GPIOB, U_Mos_L_Pin);
-		GPIO_SetBits(GPIOB, W_Mos_L_Pin);
-		GPIO_SetBits(GPIOB, V_Mos_L_Pin); 
-		//Delay_ms(300);
-		Sysvariable.Stop_Time=POWER_DELAY;
-		sysflags.Motor_Stop=1;
- 	}
-}
-
- 
-/*****************************************************************************
- º¯ Êý Ãû  : UserSpeedControlInit
- ¹¦ÄÜÃèÊö  : µ÷ËÙ¿ØÖÆ¿ªÊ¼
- ÊäÈë²ÎÊý  : ÎÞ
- Êä³ö²ÎÊý  : void
-*****************************************************************************/
-void UserSpeedControlInit(void)
-{
-	static uint8_t RheostatCnt0=0;
-	
- if(ADJ_MODE==DIRECT_GIVE)
- {
-		if(GPIO_ReadInputDataBit(GPIOB,GPIO_Pin_4)==0)		//°´¼üµÍµçÆ½Îª´ò¿ª
-		{
-			RheostatCnt0++;
-			if(RheostatCnt0>100)		//¼ì²âµ½100´ÎPF_1ÎªµÍµçÆ½£¬ÏµÍ³Æô¶¯£¬ËùÒÔPF¼ì²âµÄÊÇÊ²Ã´£¿£¿
-			{
-			RheostatCnt0=0;
-			sysflags.System_Start=1;
-			}	
-		}
-		else
-		{	
-			RheostatCnt0=0;
-			sysflags.System_Start=0;
-
-		}
-  }
-}
-/*****************************************************************************
- º¯ Êý Ãû  : UserSpeedControl
- ¹¦ÄÜÃèÊö  : µ÷ËÙ¿ØÖÆ
- ÊäÈë²ÎÊý  : ÎÞ
- Êä³ö²ÎÊý  : void
-*****************************************************************************/
-void UserSpeedControl(void)
-{
-	static uint8_t RheostatCnt0=0;  //µ÷ËÙ¾Ö²¿±äÁ¿
-  static uint8_t RheostatCnt1=0;  //µ÷ËÙ¾Ö²¿±äÁ¿
-	if( Motor.ControlMode==CLOSED_SPEEDLOOP_Halless)
-	{
-			if(ADJ_MODE==DIRECT_GIVE)
-			{	 
-				if(GPIO_ReadInputDataBit(GPIOB,GPIO_Pin_4)==0)
-				{
-					RheostatCnt0++;
-					if(RheostatCnt0>10)
-					{
-						RheostatCnt0=0;
-						UserRequireSpeed=Motor_UserSpeed;
-#if SHF_TEST
-						if((Motor.motor_speed+MOTOR_ACC_DELTA_SPEED) < UserRequireSpeed)
-						{
-							Motor.motor_speed += MOTOR_ACC_DELTA_SPEED;                       ////Ã¿ºÁÃëÔö¼Ó5         Õâ¸ö¼ÓµÄÍ¦¿ìµÄ  1ÃëÖÓ10×ªµÄ»°£¬1ºÁÃë¾ÍÊÇ0.01×ª
-						}
-						else
-						{
-							Motor.motor_speed = UserRequireSpeed;
-						}
-						
-						if(Motor.motor_speed > Motor_MAX_SPEED)
-						{
-							Motor.motor_speed = Motor_MAX_SPEED;
-						}
-					
-						bldc_pid.SetPoint = Motor.motor_speed; 
-#endif
-					}	
-				}
-				else
-				{
-					RheostatCnt1++;
-					if(RheostatCnt1>10)
-					{
-						RheostatCnt1=0;
-						UserRequireSpeed=0;
-						Sysvariable.Stop_Time=Motor_DelayTime;		
-						MotorStop();
-					}	
-				}
-			}
-    
-  }
-	else  //¿ª»·
-	{
-			if(ADJ_MODE==DIRECT_GIVE)
-			{	 
-				if(GPIO_ReadInputDataBit(GPIOB,GPIO_Pin_4)==0)
-				{
-					RheostatCnt0++;
-					if(RheostatCnt0>10)
-					{
-						RheostatCnt0=0;
-						sysflags.System_Start=1;
-						UserRequireSpeed=MAX_DUTY;
-
-					}	
-				}
-				else
-				{
-					RheostatCnt1++;
-					if(RheostatCnt1>10)
-					{
-						RheostatCnt1=0;
-						UserRequireSpeed=0;
-						sysflags.System_Start=0;
-						Sysvariable.Stop_Time=Motor_DelayTime;		
-						MotorStop();
-					}	
-				}
-		
-    }
-  }
-}
-#if 0
-/*****************************************************************************
- º¯ Êý Ãû  : Charger
- ¹¦ÄÜÃèÊö  : ³äµç
- ÊäÈë²ÎÊý  : ÎÞ
- Êä³ö²ÎÊý  : void
-*****************************************************************************/
-void  Charger(void)
-{
-	TIM1->CCR1 = 0;   //¹ØÉÏÇÅ   
-	TIM1->CCR2 = 0;   //   
-	TIM1->CCR3 = 0;   //   
-	
-	GPIOB->BRR = U_Mos_L_Pin|V_Mos_L_Pin;  //UVÏÂÇÅ¿ª
-	GPIOB->BRR = W_Mos_L_Pin ;  //wÏÂ¹Ü¿ª
-	Flag_Charger=1;  //³äµç±êÖ¾Î»
-
-}
-/*****************************************************************************
- º¯ Êý Ãû  : All_Discharg
- ¹¦ÄÜÃèÊö  : È«²¿¹Ø±Õ
- ÊäÈë²ÎÊý  : ÎÞ
- Êä³ö²ÎÊý  : void
-*****************************************************************************/
-void  All_Discharg(void)	
-{
-	TIM1->CCR1=0;
-	TIM1->CCR2=0;
-	TIM1->CCR3=0;
-	GPIOB->BSRR = U_Mos_L_Pin | V_Mos_L_Pin | W_Mos_L_Pin;  //UVWÏÂÇÅ¹Ø
-}
-/*****************************************************************************
- º¯ Êý Ãû  : UV_W_phase_inject
- ¹¦ÄÜÃèÊö  : UV_W×¢Èë
- ÊäÈë²ÎÊý  : ÎÞ
- Êä³ö²ÎÊý  : void
-*****************************************************************************/
-void  UV_W_phase_inject(void)	//110
-{ 
-
-	TIM1->CCR1 = Lock_Duty;	  //	 UÉÏ		
-	TIM1->CCR2 = Lock_Duty;   //    VÉÏ
-	GPIOB->BRR = W_Mos_L_Pin ;  //wÏÂ¹Ü¿ª
-	Flag_adc=1;  
-	pos_idx=0;
-}
-/*****************************************************************************
- º¯ Êý Ãû  : W_UV_phase_inject
- ¹¦ÄÜÃèÊö  : W_UV×¢Èë
- ÊäÈë²ÎÊý  : ÎÞ
- Êä³ö²ÎÊý  : void
-*****************************************************************************/
-void  W_UV_phase_inject(void)	//001
-{
-	
-	TIM1->CCR3 = Lock_Duty;   //WÉÏ
-	GPIOB->BRR = U_Mos_L_Pin|V_Mos_L_Pin;  //ÏÂÇÅ¿ª  uv 
-	Flag_adc=1;  
-	pos_idx=1;	
-}
-/*****************************************************************************
- º¯ Êý Ãû  : WU_V_phase_inject
- ¹¦ÄÜÃèÊö  : WU  V×¢Èë
- ÊäÈë²ÎÊý  : ÎÞ
- Êä³ö²ÎÊý  : void
-*****************************************************************************/
-void  WU_V_phase_inject(void)	//101
-{
-	TIM1->CCR1 = Lock_Duty;   //UÉÏ
-	TIM1->CCR3 = Lock_Duty;	 //	WÉÏ	
-	GPIOB->BRR = V_Mos_L_Pin;  //ÏÂÇÅ¿ª  v  
-	Flag_adc=1;  
-	pos_idx=2;
-}
-/*****************************************************************************
- º¯ Êý Ãû  : V_WU_phase_inject
- ¹¦ÄÜÃèÊö  : V_WU ×¢Èë
- ÊäÈë²ÎÊý  : ÎÞ
- Êä³ö²ÎÊý  : void
-*****************************************************************************/
-void  V_WU_phase_inject(void)	//010
-{  
-	TIM1->CCR2 = Lock_Duty;   //    VÉÏ
-	GPIOB->BRR = W_Mos_L_Pin ;  //wÏÂ¹Ü¿ª
-	GPIOB->BRR = U_Mos_L_Pin ;//UÏÂ¹Ü¿ª
-	Flag_adc=1;  
-	pos_idx=3;
-}
-/*****************************************************************************
- º¯ Êý Ãû  : VW_U_phase_inject
- ¹¦ÄÜÃèÊö  : VW_U ×¢Èë
- ÊäÈë²ÎÊý  : ÎÞ
- Êä³ö²ÎÊý  : void
-*****************************************************************************/
-void  VW_U_phase_inject(void)	//011
-{
-
-	 TIM1->CCR2 = Lock_Duty;   //WÉÏ
-	 TIM1->CCR3 = Lock_Duty;	 //	VÉÏ	
-	 GPIOB->BRR = U_Mos_L_Pin ;//UÏÂ¹Ü¿ª
-	 Flag_adc=1;  
-	 pos_idx=4;
-	
-}
-/*****************************************************************************
- º¯ Êý Ãû  : U_VW_phase_inject
- ¹¦ÄÜÃèÊö  : U_VW ×¢Èë
- ÊäÈë²ÎÊý  : ÎÞ
- Êä³ö²ÎÊý  : void
-*****************************************************************************/
-void  U_VW_phase_inject(void)	//100
-{
-	 
-	TIM1->CCR1 = Lock_Duty;	 //	UÉÏ	
-	GPIOB->BRR = W_Mos_L_Pin ;  //wÏÂ¹Ü¿ª
-	GPIOB->BRR = V_Mos_L_Pin ;//VÏÂ¹Ü¿ª
-	Flag_adc=1;  
-	pos_idx=5;
-}
-#else
 //------------------------------------------------------------------------------------------------------
-void  Charger(void)
+void  Charger(void)			//ÏÂÇÅÈ«¿ª£¬ÉÏÇÅÈ«¹Ø
 {
-	TIM1->CCR1 = 0;  
-	TIM1->CCR2 = 0;         					  
-	TIM1->CCR3 = 0;
-	GPIO_SetBits(GPIOB, GPIO_Pin_13 | GPIO_Pin_14 | GPIO_Pin_15); 
+    // /*  Channel1 configuration */
+    // TIM_CCxCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCx_Disable);        
+    // TIM_SetCompare1(BLDC_TIMx,PWM_ARR);
+    // TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCxN_Enable);
+	// /*  Channel2 configuration */
+	// TIM_CCxCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCx_Disable);        
+    // TIM_SetCompare2(BLDC_TIMx,PWM_ARR);
+    // TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCxN_Enable);
+	// /*  Channel3 configuration */
+	// TIM_CCxCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCx_Disable);        
+    // TIM_SetCompare3(BLDC_TIMx,PWM_ARR);
+    // TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCxN_Enable);
+	TIM_CCxCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCx_Disable);        
+    TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCxN_Disable);      
+    TIM_CCxCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCx_Disable);
+    TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCxN_Disable);
+    TIM_CCxCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCx_Disable);
+    TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCxN_Disable);
 
 	Flag_Charger=1;  //³äµç±êÖ¾Î»
 
 }
 void  All_Discharg(void)	
 {
-	TIM1->CCR1 = 0;  
-	TIM1->CCR2 = 0;         					  
-	TIM1->CCR3 = 0;
-	GPIO_ResetBits(GPIOB, GPIO_Pin_13 | GPIO_Pin_14 | GPIO_Pin_15); 
+    TIM_CCxCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCx_Disable);        
+    TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCxN_Disable);      
+    TIM_CCxCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCx_Disable);
+    TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCxN_Disable);
+    TIM_CCxCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCx_Disable);
+    TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCxN_Disable);
+}
+void Motor_PWM_IDLE(void)
+{
+    TIM_CCxCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCx_Disable);
+    TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCxN_Disable);
+    TIM_CCxCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCx_Disable);
+    TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCxN_Disable);
+    TIM_CCxCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCx_Disable);
+    TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCxN_Disable);
+    TIM_ForcedOC1Config(BLDC_TIMx,TIM_ForcedAction_InActive);        //        Ç¿ÖÆµÍ
+    TIM_ForcedOC2Config(BLDC_TIMx,TIM_ForcedAction_InActive);
+    TIM_ForcedOC3Config(BLDC_TIMx,TIM_ForcedAction_InActive);
+    TIM_OC1NPolarityConfig(BLDC_TIMx,TIM_OCNPolarity_High);          ////Í£»úÊ±£¬Õâ¸ö¼«ÐÔÅäÖÃÊÇ¸ßµçÆ½ÓÐÐ§  Ò²¾ÍÊÇ CC1NP = 0;    TIM_OCNPolarity_High=0x0
+    TIM_OC2NPolarityConfig(BLDC_TIMx,TIM_OCNPolarity_High);         //// °´ÕÕ¶¨Òå£ºOCxN=CCxNP£¬OCxN_EN=0  ´ËÊ±£¬Õâ¸öNµÄÊä³öÎªµÍµçÆ½£¬¶øµÍµçÆ½£¬ÕýºÃÊÇÏÂ¹Üµ¼Í¨
+    TIM_OC3NPolarityConfig(BLDC_TIMx,TIM_OCNPolarity_High);
+
 }
 void  UV_W_phase_inject(void)	//110
 { 
 
-	TIM1->CCR1 = Lock_Duty;  
-	TIM1->CCR2 = Lock_Duty;         					  
-	TIM1->CCR3 = 0;
-	GPIO_ResetBits(GPIOB, GPIO_Pin_13 | GPIO_Pin_14); 
-	GPIO_SetBits(GPIOB, GPIO_Pin_15); 
+    /*  Channel1 configuration */
+    TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCxN_Disable);
+    TIM_SetCompare1(BLDC_TIMx,Lock_Duty);
+    TIM_CCxCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCx_Enable);
+	/*  Channel2 configuration */
+    TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCxN_Disable);
+    TIM_SetCompare2(BLDC_TIMx,Lock_Duty);
+    TIM_CCxCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCx_Enable);
+	/*  Channel3 configuration */
+	TIM_CCxCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCx_Disable);        
+    TIM_SetCompare3(BLDC_TIMx,PWM_ARR);
+    TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCxN_Enable);
 
 	Flag_adc=1;  
 	pos_idx=0;
@@ -759,44 +701,72 @@ void  UV_W_phase_inject(void)	//110
 void  W_UV_phase_inject(void)	//001
 {
 	
-	TIM1->CCR1 = 0;  
-	TIM1->CCR2 = 0;         					  
-	TIM1->CCR3 = Lock_Duty;
-	GPIO_ResetBits(GPIOB, GPIO_Pin_15);
-	GPIO_SetBits(GPIOB, GPIO_Pin_13 | GPIO_Pin_14); 
+	/*  Channel3 configuration */
+    TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCxN_Disable);
+    TIM_SetCompare3(BLDC_TIMx,Lock_Duty);
+    TIM_CCxCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCx_Enable);
+    /*  Channel1 configuration */
+	TIM_CCxCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCx_Disable);        
+    TIM_SetCompare1(BLDC_TIMx,PWM_ARR);
+    TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCxN_Enable);
+	/*  Channel2 configuration */
+	TIM_CCxCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCx_Disable);        
+    TIM_SetCompare2(BLDC_TIMx,PWM_ARR);
+    TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCxN_Enable);
 	 
 	Flag_adc=1;  
 	pos_idx=1;	
 }
 void  WU_V_phase_inject(void)	//101
 {
-	TIM1->CCR1 = Lock_Duty;  
-	TIM1->CCR2 = 0;         					  
-	TIM1->CCR3 = Lock_Duty;
-	GPIO_ResetBits(GPIOB, GPIO_Pin_13 | GPIO_Pin_15); 
-	GPIO_SetBits(GPIOB, GPIO_Pin_14); 
+    /*  Channel1 configuration */
+    TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCxN_Disable);
+    TIM_SetCompare1(BLDC_TIMx,Lock_Duty);
+    TIM_CCxCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCx_Enable);
+	/*  Channel3 configuration */
+    TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCxN_Disable);
+    TIM_SetCompare3(BLDC_TIMx,Lock_Duty);
+    TIM_CCxCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCx_Enable);
+	/*  Channel2 configuration */
+	TIM_CCxCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCx_Disable);        
+    TIM_SetCompare2(BLDC_TIMx,PWM_ARR);
+    TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCxN_Enable);
 
 	Flag_adc=1;  
 	pos_idx=2;
 }
 void  V_WU_phase_inject(void)	//010
 {  
-	TIM1->CCR1 = 0;  
-	TIM1->CCR2 = Lock_Duty;         					  
-	TIM1->CCR3 = 0;
-	GPIO_ResetBits(GPIOB, GPIO_Pin_14);
-	GPIO_SetBits(GPIOB, GPIO_Pin_13 | GPIO_Pin_15); 
+	/*  Channel2 configuration */
+    TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCxN_Disable);
+    TIM_SetCompare2(BLDC_TIMx,Lock_Duty);
+    TIM_CCxCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCx_Enable);
+    /*  Channel1 configuration */
+	TIM_CCxCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCx_Disable);        
+    TIM_SetCompare1(BLDC_TIMx,PWM_ARR);
+    TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCxN_Enable);
+	/*  Channel3 configuration */
+	TIM_CCxCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCx_Disable);        
+    TIM_SetCompare3(BLDC_TIMx,PWM_ARR);
+    TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCxN_Enable);
 
 	Flag_adc=1;  
 	pos_idx=3;
 }
 void  VW_U_phase_inject(void)	//011
 {
-	TIM1->CCR1 = 0;  
-	TIM1->CCR2 = Lock_Duty;         					  
-	TIM1->CCR3 = Lock_Duty;
-	GPIO_ResetBits(GPIOB, GPIO_Pin_14 | GPIO_Pin_15); 
-	GPIO_SetBits(GPIOB, GPIO_Pin_13); 
+    /*  Channel2 configuration */
+    TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCxN_Disable);
+    TIM_SetCompare2(BLDC_TIMx,Lock_Duty);
+    TIM_CCxCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCx_Enable);
+	/*  Channel3 configuration */
+    TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCxN_Disable);
+    TIM_SetCompare3(BLDC_TIMx,Lock_Duty);
+    TIM_CCxCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCx_Enable);
+	/*  Channel1 configuration */
+	TIM_CCxCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCx_Disable);        
+    TIM_SetCompare1(BLDC_TIMx,PWM_ARR);
+    TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCxN_Enable);
 
 	 Flag_adc=1;  
 	 pos_idx=4;
@@ -804,17 +774,24 @@ void  VW_U_phase_inject(void)	//011
 void  U_VW_phase_inject(void)	//100
 {
 	 
-	TIM1->CCR1 = Lock_Duty;  
-	TIM1->CCR2 = 0;         					  
-	TIM1->CCR3 = 0;
-	GPIO_ResetBits(GPIOB, GPIO_Pin_13);
-	GPIO_SetBits(GPIOB, GPIO_Pin_14 | GPIO_Pin_15); 
+	/*  Channel1 configuration */
+    TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCxN_Disable);
+    TIM_SetCompare1(BLDC_TIMx,Lock_Duty);
+    TIM_CCxCmd(BLDC_TIMx,TIM_Channel_1,TIM_CCx_Enable);
+    /*  Channel2 configuration */
+	TIM_CCxCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCx_Disable);        
+    TIM_SetCompare2(BLDC_TIMx,PWM_ARR);
+    TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_2,TIM_CCxN_Enable);
+	/*  Channel3 configuration */
+	TIM_CCxCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCx_Disable);        
+    TIM_SetCompare3(BLDC_TIMx,PWM_ARR);
+    TIM_CCxNCmd(BLDC_TIMx,TIM_Channel_3,TIM_CCxN_Enable);
 
 	Flag_adc=1;  
 	pos_idx=5;
 }
 //------------------------------------------------------------------------------------------------------
-#endif
+
 
 /*****************************************************************************
  º¯ Êý Ãû  : Align_pos_check_proc
@@ -825,83 +802,197 @@ void  U_VW_phase_inject(void)	//100
 #if PULSE_INJECTION
 void Align_pos_check_proc(void)
 {
+#if SHF_TEST_START
 	if((Flag_adc==0)&&(Flag_Charger==0))  //µçÁ÷²É¼¯²¢ÇÒ³äµçÍê³É
 	{
 		switch(pos_check_stage)//
 		{
-#if 1
+			case 0: //ÏÈ³äµç	
+				Charger();
+				pos_check_stage = 10;
+				break;
+			case 10://µÚÒ»¸öÂö³å×¢Èë
+				UV_W_phase_inject();	//A+B+C- 0
+				pos_check_stage = 1;
+				break;
+			case 1: //³äµç
+				charger_idx = 1;
+				Charger();
+				pos_check_stage = 20;
+				break;
+			case 20://µÚ¶þ¸öÂö³å×¢Èë
+				W_UV_phase_inject();	//C+A-B- 1
+				pos_check_stage = 3;
+				break; 
+			case 3: //³äµç
+				charger_idx = 2;	
+				Charger();
+				pos_check_stage =30;
+				break;
+
+			case 30://µÚÈý¸öÂö³å×¢Èë
+				if(ADC_check_buf[0] <= ADC_check_buf[1])
+				{
+					WU_V_phase_inject();	//A+C+B- 2
+					pos_check_stage = 4;
+				}
+				else{
+					V_WU_phase_inject();	//B+A-C- 3
+					pos_check_stage = 5;
+				}
+				break;
+			case 4://³äµç
+				charger_idx  = 3;
+				Charger();
+				pos_check_stage =40;
+				break;
+			case 40://µÚËÄ¸öÂö³å×¢Èë
+				VW_U_phase_inject();	 //B+C+A- 4
+				pos_check_stage = 6;
+				break;
+
+			case 5://³äµç
+				charger_idx = 3;
+				Charger();
+				pos_check_stage =50;
+				break;
+			case 50://µÚËÄ¸öÂö³å×¢Èë
+				U_VW_phase_inject();	//A+B-C- 5
+				pos_check_stage = 6;
+				break;
+				
+			case 6://³äµç
+				charger_idx = 4;
+				Charger();
+				pos_check_stage =7;
+				break;
+			case 7://
+				PhaseCnt=0;
+			//µçÁ÷±È½Ï»ñÈ¡Î»ÖÃ
+				if(ADC_check_buf[0]<=ADC_check_buf[1])
+				{
+					if(ADC_check_buf[2]<=ADC_check_buf[4])
+					{
+						Motor.PhaseCnt = 6;
+					}
+					else
+					{
+						Motor.PhaseCnt = 1;
+					}
+				}
+				else
+				{
+					if(ADC_check_buf[3]<=ADC_check_buf[5])
+					{
+						Motor.PhaseCnt = 3;
+					}
+					else
+					{
+						Motor.PhaseCnt = 4;
+					}
+				}
+
+				Flag_OverCurr=1;         //´òÍêÂö³åÖ®ºó  Ê¹ÄÜÓ²¼þ¹ýÁ÷±£»¤
+				All_Discharg();
+				Motor.Duty = ALIGNMENTDUTY ;
+
+				Startup_Turn(); //Ç¿ÖÆ»»Ïò
+				Delay_ms(BeforDragTimes);//¶ÔÆëÊ±¼ä
+				// All_Discharg();		//²âÊÔÓÃ£¬¼ÇµÃÉ¾£¡£¡
+				Motor.PhaseCnt++;
+				EnterDragInit();
+				break;
+			default:
+				break;
+		}
+	}
+
+
+#else
+	if((Flag_adc==0)&&(Flag_Charger==0))  //µçÁ÷²É¼¯²¢ÇÒ³äµçÍê³É
+	{
+		switch(pos_check_stage)//
+		{
 			case 0: //ÏÈ³äµç	
 				Charger();
 				pos_check_stage = 10;
 				break;
 			case 10://µÚÒ»¸öÂö³å×¢Èë
 				UV_W_phase_inject();
-				// U_VW_phase_inject();
+				// MOS_Q24PWM();		//B+A-
 				pos_check_stage = 1;
 				break;
 			
 			case 1: //³äµç
+				charger_idx ++;
 				Charger();
 				pos_check_stage = 20;
 				break;
 			case  20://µÚ¶þ¸öÂö³å×¢Èë
 				W_UV_phase_inject();
-				// UV_W_phase_inject();
+				// MOS_Q15PWM();		//A+B-
 				pos_check_stage = 3;
 				break; 
 			
-			case 3: //³äµç	
+			case 3: //³äµç
+				charger_idx ++;	
 				Charger();
 				pos_check_stage =30;
 				break;
 			case 30://µÚÈý¸öÂö³å×¢Èë
 				WU_V_phase_inject();
-				// V_WU_phase_inject();
+				// MOS_Q35PWM();		//C+B-
 				pos_check_stage =4;
 				break; 
 			case 4://³äµç
+				charger_idx ++;
 				Charger();
 				pos_check_stage =40;
 				break;
 			case 40://µÚËÄ¸öÂö³å×¢Èë
 				V_WU_phase_inject();
-				// VW_U_phase_inject();
+				// MOS_Q26PWM();		//B+C-
 				pos_check_stage =5;
 				break;
 			case 5://³äµç
+				charger_idx ++;
 				Charger();
 				pos_check_stage =50;
 				break;
 			case 50://µÚÎå¸öÂö³å×¢Èë
-				VW_U_phase_inject();
-				// W_UV_phase_inject();		   
+				VW_U_phase_inject();	 
+				// MOS_Q16PWM();		//A+C- 
 				pos_check_stage =6;
 				break;
 			case 6://³äµç
+				charger_idx ++;
 				Charger();	
 				pos_check_stage =60;
-				test_idx = 0;
 				break;
 			case 60://µÚÁù¸öÂö³å×¢Èë
 				U_VW_phase_inject();
-				// WU_V_phase_inject();
+				// MOS_Q34PWM();		//C+A-
 				pos_check_stage =7;
 				break;
-			case 7://
+			case 7://µÚÁù¸öÂö³å×¢Èë
+				charger_idx ++;
+				Charger();
+				pos_check_stage =70;
+				break;
+			case 70://
 				PhaseCnt=0;
 			//µçÁ÷±È½Ï»ñÈ¡Î»ÖÃ
-				if(ADC_check_buf[0]<=ADC_check_buf[1])PhaseCnt|= 0x04;  
-				if(ADC_check_buf[2]<=ADC_check_buf[3])PhaseCnt|= 0x02;
-				if(ADC_check_buf[4]<=ADC_check_buf[5])PhaseCnt|= 0x01;	
+				if(ADC_check_buf[0]<=ADC_check_buf[1])PhaseCnt|= 0x04;  		//V4<V1		"1"¿¿½üA+
+				if(ADC_check_buf[2]<=ADC_check_buf[3])PhaseCnt|= 0x02;			//V2<V5		"1"¿¿½üB+
+				if(ADC_check_buf[4]<=ADC_check_buf[5])PhaseCnt|= 0x01;			//V6<V3		"1"¿¿½üC+
 				Initial_stage= PhaseCnt; //²âÊÔÓÃµÄ  ¿´Î»ÖÃ±äÁ¿
 				Flag_OverCurr=1;         //´òÍêÂö³åÖ®ºó  Ê¹ÄÜÓ²¼þ¹ýÁ÷±£»¤
-#if 1
 				All_Discharg();
-#endif
-#endif
+
 				//Motor.PhaseCnt=PhaseCnt;
 				Motor.Duty =ALIGNMENTDUTY ;
-				 switch(PhaseCnt)		//´ËÊ±Ô¤¶¨Î»Íê³É
+
+				switch(PhaseCnt)		//´ËÊ±Ô¤¶¨Î»Íê³É
 				{
 					case  5:  
 					{
@@ -974,6 +1065,66 @@ void Align_pos_check_proc(void)
 				break;
 			default:
 				break;
+		}
+	}
+#endif
+
+	// if((Flag_adc==1)||(Flag_Charger==1))//³äµç±êÖ¾Î»»òÕßµçÁ÷¼ì²â±êÖ¾Î»ÖÃ1
+	// {
+	// 	Charger_Time++;  //Ê±¼ä¼ÆÊý++
+	// }
+
+	if(Flag_adc==1)//µçÁ÷¼ì²â±êÖ¾Î»ÖÃ1
+	{
+		// if(pos_idx<=5) //ADCµçÁ÷¼ì²âÐòºÅ
+		// {
+		// 	// if(ADC_check_buf[pos_idx] < Motor.CheckCurrent)
+		// 	// {
+		// 		ADC_check_buf[pos_idx] = Motor.CheckCurrent;	//»ñÈ¡·åÖµµçÁ÷	//´Ë´¦ÓÐ´ýÉÌ×Ã
+		// 		// Motor.CheckCurrent = 0;
+		// 	// }			
+		// }
+		// if((Charger_Time == ShortPulse_Time - 5) && (pos_idx<=5)) //ADCµçÁ÷¼ì²âÐòºÅ
+		// CatchFlag = 1;
+		// j = 0;
+		// if(pos_idx<=5)
+		// {
+		ADC_check_buf[pos_idx] = Motor.CheckCurrent;	//»ñÈ¡·åÖµµçÁ÷	//´Ë´¦ÓÐ´ýÉÌ×Ã
+		// }
+		curr_test[pos_idx][j] = Motor.CheckCurrent;
+		j++;							
+	} 
+	
+	if(Flag_Charger==1) //³äµç±êÖ¾Î»
+	{
+		if((charger_idx > 0) && (Charger_Time <= LongPulse_Time / 5))
+		{
+			ADC_check_buf[pos_idx] = Motor.CheckCurrent;
+			curr_test[charger_idx - 1][j] = Motor.CheckCurrent;
+			j++;				
+		}
+
+		if(Charger_Time>=LongPulse_Time)  //³äµçÊ±¼äµ½
+		{
+			Charger_Time=0;  //¼ÆÊýÇå0
+			All_Discharg();  //Êä³öÈ«²¿¹Ø±Õ
+			Flag_Charger=0;  //³äµç±êÖ¾Î»Çå0
+			j = 0;
+			// test_idx ++;
+			// if(test_idx>=6)
+			// {
+			// 	test_idx = 0;
+			// }	
+		}
+	}
+	else if(Flag_adc==1) //µçÁ÷¼ì²â±êÖ¾Î»ÖÃ1
+	{
+		if(Charger_Time>=ShortPulse_Time) //Ê±¼ä¼ÆÊýµ½
+		{
+			All_Discharg();
+			Charger_Time=0;
+			Flag_adc=0;
+			// j = 0;
 		}
 	}	
 }

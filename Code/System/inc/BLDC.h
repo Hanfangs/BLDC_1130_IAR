@@ -68,12 +68,21 @@
 
 #define  Motor_DelayTime   6000
 
-#define MOTOR_BRAKE_ENABLE 	0//1为启用刹车功能
-#define PULSE_INJECTION 	0
+
+#define	EMPTY_LOAD 0
+#if (EMPTY_LOAD == 1)
+//空载
 #define	P1	0.0005349
 #define	P2	-0.1232
 #define	P3	13.48
 #define	P4	7.269
+//带载
+#else
+	#define	P1	0.001656
+	#define	P2	-0.2403
+	#define	P3	16.29 
+	#define	P4	24.74
+#endif
 #define    ACC_FUN(X, P1, P2, P3, P4)	((P1)*(X)*(X)*(X) + (P2)*(X)*(X) + (P3)*(X) + (P4))
 
 typedef enum
@@ -93,8 +102,10 @@ typedef enum
 	mcAlignment = 1,
 	mcDrag = 2, 
 	mcRun = 3,
-	mcReset = 4,
+	mcDec = 4,
 	mcStop = 5,	// 电机停止工作
+	mcStopNext = 6,
+	mcStopNext2 = 7,
 }MotorState_T;	//电机状态标志
 GLOBAL_BLDC_  MotorState_T mcState;
 
@@ -130,6 +141,7 @@ typedef struct {
 	uint16_t   UVoltage;
 	uint16_t   VVoltage;
 	uint16_t   WVoltage;
+	uint16_t   CheckCurrent;
 	int16_t	   Uab;
 	int16_t	   Ubc;
 	int16_t	   Uca;
@@ -139,6 +151,7 @@ typedef struct {
 	uint16_t   step_counter;
 	uint16_t   step_counter_prev;
 	uint16_t   motor_speed;                           /* 电机设置速度   */
+	uint32_t   motorRunTime;	
 }BLDC;
 GLOBAL_BLDC_  BLDC  Motor;
 
@@ -155,13 +168,18 @@ typedef struct
     uint16_t  SpeedTimeTemp ;
     uint32_t  SpeedTimeSum;
     uint16_t  DelayTime30;
-	uint16_t  ChangeCount;
+	uint16_t  CorrectionTime;
+	uint32_t  ChangeCount;
+	uint32_t  ChangeCount_Dec;
+	uint32_t  ChangeCount_Stop;
 	uint16_t  ChangeTime_Count;
 	uint16_t  LastDragTime;
+	uint16_t  StopDelayTime;
 }variable;
-GLOBAL_BLDC_  variable Sysvariable;
+GLOBAL_BLDC_  variable  Sysvariable;
 GLOBAL_BLDC_  uint8_t    pos_check_stage;
 GLOBAL_BLDC_  uint8_t    pos_idx;
+GLOBAL_BLDC_  uint8_t    charger_idx;
 GLOBAL_BLDC_  uint16_t  ADC_check_buf[6];
 GLOBAL_BLDC_  uint16_t  ADC_Sum_buf[6];
 GLOBAL_BLDC_  uint8_t  Flag_adc;
@@ -171,16 +189,23 @@ GLOBAL_BLDC_  uint8_t  Flag_OverCurr;
 GLOBAL_BLDC_  uint16_t    usTmsAvrgDly;
 GLOBAL_BLDC_  uint16_t   UserSpeedSample;
 GLOBAL_BLDC_  uint16_t  test_idx;
+GLOBAL_BLDC_  uint8_t  Flag_Alignment;
 GLOBAL_BLDC_ void  MotorInit(void);
-GLOBAL_BLDC_ void  Startup_Turn(void) ;
+GLOBAL_BLDC_ void  Startup_Turn(void);
+GLOBAL_BLDC_ void  Motor_PWM_IDLE(void);
 GLOBAL_BLDC_ void  MotorStop(void);
+GLOBAL_BLDC_ void  MotorStopNext(void);
+GLOBAL_BLDC_ void  MotorStopNext2(void);
+GLOBAL_BLDC_ void  Set_Motor_Stop_Delay(uint32_t delay_time);
+GLOBAL_BLDC_ void  Motor_Stop_Delay(void);
 GLOBAL_BLDC_ void  MotorAlignment(void);
 GLOBAL_BLDC_ void  EnterDragInit(void);
 GLOBAL_BLDC_ void  EnterRunInit(void);
 GLOBAL_BLDC_ void  StartupDrag(void);
 GLOBAL_BLDC_ void  MotorControl(void);
 GLOBAL_BLDC_ void  UserSpeedControlInit(void);
-GLOBAL_BLDC_ void  UserSpeedControl(void);
+GLOBAL_BLDC_ void  AccSpeedControl(void);
+GLOBAL_BLDC_ void  DecSpeedControl(void);
 GLOBAL_BLDC_ void  Sys_Variable_Init(void);
 GLOBAL_BLDC_ void  Align_pos_check_proc(void);
 GLOBAL_BLDC_ void All_Discharg(void);

@@ -293,7 +293,7 @@ void TIM3_Config(void)
     /* 使能定时器重载寄存器ARR */
     TIM_ARRPreloadConfig(BLDC_TIMx, ENABLE);
   
-    TIM_ITConfig(BLDC_TIMx,TIM_IT_CC4,ENABLE);               
+    TIM_ITConfig(BLDC_TIMx,TIM_IT_CC4,DISABLE);               
     
     //刹车
     TIM_ClearITPendingBit(BLDC_TIMx,TIM_IT_Break);

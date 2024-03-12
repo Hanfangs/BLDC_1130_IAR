@@ -6,9 +6,10 @@
 #include "Timer_ISR.h"
 #include "User_Config.h"
 
+
  void bldcSpeedControlTime(int32_t Idle_SpeedValue,int32_t Actual_SpeedValue);  //速度环
 
-__IO uint16_t Limit_speed_duty = 300; //低速启动限制占空比
+__IO uint16_t Limit_speed_duty = 1500; //低速启动限制占空比
 
 PIDCONTROL   PID_Speed = {	0.01,                                                 /* p设置为10                    */
 							0.005,                                                   /* i设置为3                     */
@@ -22,7 +23,7 @@ PIDCONTROL   PID_Speed = {	0.01,                                                
 							0,
 							0,
 							1500,												/* 最大占空比*/
-							300													/* 最小占空比*/
+							100													/* 最小占空比*/
 
 }; 
 
@@ -52,6 +53,10 @@ void CalcAvgSpeedTime(void)
 		Sysvariable.SpeedTimeCnt = 0;		
 	}
 }
+void ErrorCorrection(void)
+{
+
+}
 /*****************************************************************************
  函 数 名  : CalcSpeedTime
  功能描述  : 计算时间[60度]		还没做补偿
@@ -59,9 +64,12 @@ void CalcAvgSpeedTime(void)
  输出参数  : void
 *****************************************************************************/
  void CalcSpeedTime(void)
-{	 
-	
-	TIM3->ARR=Sysvariable.DelayTime30;		//重新定时了，单位us
+{	
+	uint16_t theta; 
+	theta = atan(DELAYFACTOR * Motor.ActualSpeed);		//延迟角
+	// Sysvariable.CorrectionTime = 0.8 * Sysvariable.DelayTime30;		//延迟时间
+	TIM3->ARR = Sysvariable.DelayTime30 - Sysvariable.CorrectionTime;		//重新定时了，单位us
+	// TIM3->ARR=Sysvariable.DelayTime30;
 	TIM3->CR1|=0x0001;       //打开定时器
 	TIM3->CNT = 0;
 	
@@ -79,11 +87,12 @@ void CalcAvgSpeedTime(void)
  输入参数  : 无
  输出参数  : void
 *****************************************************************************/
-#if SHF_TEST
+#if SHF_TEST_SPEED
 PID bldc_pid;
 void IncPIDInit(void) 
 {
-	Motor.motor_speed   = Motor.Duty * 16 / 30 ;
+	// Motor.motor_speed   = Motor.Duty * 16 / 30 ;			//这个要根据加速完成后的速度来定
+	Motor.motor_speed = Motor.ActualSpeed + MOTOR_ACC_DELTA_SPEED;
 	bldc_pid.LastError  = 0;                    //Error[-1]
 	bldc_pid.PrevError  = 0;                    //Error[-2]
 	bldc_pid.Proportion = P_DATA_ACC;              //比例常数 Proportional Const
@@ -107,34 +116,46 @@ int IncPIDCalc(int NextPoint)
     return(iIncpid);                                    //返回增量值
 }
 
+//转速PI控制 + 转速计算
 void SpeedController(void)			
 {
-	if(mcState == mcRun)
+	uint16_t tmp_Min_Speed_Duty;
+	if(mcState == mcRun || mcState == mcDec)
 	{
 		TuneDutyRatioCnt ++;	
 		if(TuneDutyRatioCnt >= SPEEDLOOPCNT)	// 速度环	50ms调整一次
 		{
-			static uint16_t temp;
-			static uint16_t DutyInc;
+			static uint16_t DutyInc;	//测试用的
 			int pid_result;
 
-			if(sysflags.SwapFlag == 0)
-			{
-				temp = Motor.Duty * 16 / 30;	//占空比和速度间的转换
-				sysflags.SwapFlag = 1;
-			}
-			else
-			{
-				temp = (Motor.step_counter + Motor.step_counter_prev) * 25;		//与前50ms的值取均值，temp值就是当前速度值
-			}
-			Motor.ActualSpeed = temp;
+			// if(sysflags.SwapFlag == 0)
+			// {
+			// 	Motor.ActualSpeed = Motor.Duty * 16 / 30;	//占空比和速度间的转换
+			// 	sysflags.SwapFlag = 1;
+			// }
+			// else
+			// {
+			// Motor.ActualSpeed = (Motor.step_counter + Motor.step_counter_prev) * 25;		//与前50ms的值取均值，temp值就是当前速度值
+			//M法测速
+			// Motor.ActualSpeed = (Motor.step_counter * 60 * 1000)/ (24 * SPEEDLOOPCNT);		//n=(60*m1)/(P*Tg)=60*(cnt/24)*(1/50ms)
+			//T法测速
+			Motor.ActualSpeed = SPEEDFACTOR / Sysvariable.SpeedTime;	//60°		SpeedTime就是60°的脉冲个数，1个脉冲时间为1/72M，与主频有关
+			// }
 
 			bldc_pid.SetPoint = Motor.motor_speed;		//motor_speed是一直在变的，1ms变一次，也就是说每次motor_speed加50
+			pid_result = IncPIDCalc(Motor.ActualSpeed);
 
-			pid_result = IncPIDCalc(temp);
 			pid_result = pid_result * 30 / 16;		//占空比和速度的一个转换，转速（0~1600），占空比（0~3000）
 			DutyInc = pid_result;
 		
+			if (mcState == mcDec)
+			{
+				tmp_Min_Speed_Duty = MOTOR_DEC_MIN_DUTY_SPEED;		//减速的最小占空比
+			} else
+			{
+				tmp_Min_Speed_Duty = MOTOR_MIN_DUTY_SPEED;			//加速的最小占空比
+			}
+
 			if((pid_result + Motor.Duty) < MOTOR_MIN_DUTY_SPEED)
 			{
 				Motor.Duty = MOTOR_MIN_DUTY_SPEED;        //占空比最小120
@@ -146,7 +167,7 @@ void SpeedController(void)
 			else
 			{            
 				Motor.Duty += pid_result;  
-				if(temp <= 100)                 ///在转速比较低的情况下，如果输出的占空比又比较大的话，造成电机受不了的
+				if(Motor.ActualSpeed <= 100)                 ///在转速比较低的情况下，如果输出的占空比又比较大的话，造成电机受不了的
 				{
 					if(Motor.Duty >= Limit_speed_duty)         
 					{
@@ -167,14 +188,14 @@ void SpeedController(void)
 {	
 	if(mcState == mcRun)
 	{
-		TuneDutyRatioCnt ++;	
+		// TuneDutyRatioCnt ++;	
 		if(TuneDutyRatioCnt >= SPEEDLOOPCNT)	// 速度环	10ms调整一次
 		{
 			TuneDutyRatioCnt = 0;
-			Motor.Last_Speed = SPEEDFACTOR / Sysvariable.SpeedTime;   //60°/60°时间
-			FirstOrder_LPF_Cacl(Motor.Last_Speed,Motor.ActualSpeed,0.06);		//用的硬件滤波
-			bldcSpeedControlTime(UserRequireSpeed,Motor.ActualSpeed);
-			// bldcSpeedControlTime(UserRequireSpeed,Motor.Last_Speed);
+			Motor.Last_Speed = SPEEDFACTOR / Sysvariable.SpeedTime;   //60°		SpeedTime就是60°的脉冲个数
+			// FirstOrder_LPF_Cacl(Motor.Last_Speed,Motor.ActualSpeed,0.06);		//用的硬件滤波
+			// bldcSpeedControlTime(UserRequireSpeed,Motor.ActualSpeed);
+			bldcSpeedControlTime(UserRequireSpeed,Motor.Last_Speed);
 		}
 	}
 
